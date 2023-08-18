@@ -1,4 +1,4 @@
-use bcm2837_lpa::UART1;
+use bcm2837_lpa::{AUX, UART1};
 
 use arrayvec::ArrayString;
 use core::fmt;
@@ -44,7 +44,16 @@ pub fn get() -> spin::MutexGuard<'static, Controller> {
 
 const BAUD_RATE: usize = 115200;
 const ASSUMED_CPU_CLOCK_FREQ: usize = 250_000_000;
-pub unsafe fn init(uart: UART1, ) {
+pub unsafe fn init(uart: UART1, &mit aux: AUX) {
+    // NOTE TO SELF: On real board will have to set GPIO first
+
+    let aux = periphs.AUX;
+
+    // Enable use of UART
+    aux.enables.write(|w| {
+        w.uart_1().set_bit()
+    });
+
     // Disable interrupts
     uart.ier().write(|w| w.bits(0));
 

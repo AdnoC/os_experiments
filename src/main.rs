@@ -104,7 +104,7 @@ pub extern "C" fn _start() -> ! {
 fn kernel_start() -> ! {
     let periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
 
-    unsafe { uart::init(periphs.UART1); }
+    unsafe { uart::init(periphs.UART1, &mut periphs.AUX); }
 
     println!("Hello from println!!!!");
     println!("End of kernel addr = {}", unsafe {__end});
