@@ -32,12 +32,13 @@ args = ["-O", "binary", "./target/aarch64-ruspiro/release/os_experiments", "targ
 [tasks.qemu-run]
 dependencies = ["img"]
 command = "qemu-system-aarch64"
-args = ["-M", "raspi3b", "-nographic", "-kernel", "target/kernel.img"]
+args = ["-M", "raspi3b", "-nographic", "-kernel", "target/kernel.img", "-serial", "null", "-serial", "mon:stdio"]
 
 [tasks.qemu-gdb]
 dependencies = ["img"]
 command = "qemu-system-aarch64"
-args = ["-M", "raspi3b", "-s", "-nographic", "-kernel", "target/kernel.img"]
+# -S freezes program at startup
+args = ["-M", "raspi3b", "-s", "-S", "-nographic", "-serial", "null", "-serial", "mon:stdio", "-kernel", "target/kernel.img"]
 
 [tasks.qemu-msg]
 command = "echo"

@@ -8,6 +8,8 @@
 use core::arch::asm;
 use core::panic::PanicInfo;
 
+mod uart;
+
 // mod serial;
 // mod test_runner;
 //
@@ -36,6 +38,7 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[no_mangle]
 pub static HELLO: &[u8] = b"Hello World!";
+static mut XYZ: [u8; 0xabc123] = [0; 0xabc123];
 
 fn init() {
     // gdt::init();
@@ -50,23 +53,39 @@ fn init() {
 #[no_mangle]
 #[link_section = ".text.boot"]
 pub extern "C" fn _start() -> ! {
-    let x: usize;
     unsafe {
-        // asm!("mrs {0}, CurrentEl",
-        //      "ubfx {0}, {0}",
-        //      out(reg) x);
-        asm!("mrs x5, CurrentEl",
-             "ubfx x5, x5, #2, #2");
+        asm!("mrs x5, CurrentEl", // Move the CurrentEL system register into x5.
+             "ubfx x5, x5, #2, #2"); // Extract the relevant bitfield (bits 3:2).
+
         asm!(
-            "2:",
-            "wfe",
-            "b 2b"
+            // Set the SPSel register so that SP_EL0 is the stack pointer at all EL.
+            "mrs x6, SPSel",        // Move the current SPSel  system register into x6.
+            "and x6, x6, ~1",       // Clear the 0 bit of x6.
+            "msr SPSel, x6",        // Set the value of SPSel to x6.
+
+            // Set up the stack below our code (it grows downwards).
+            // This should be plenty big enough: only the first 4KB of memory are used.
+            "ldr x6, =_start",
+            "mov sp, x6"
+            );
+        asm!(
+            "ldr x6, =__bss_start",
+            "ldr x7, =__bss_end",
+            "21:",
+            "cmp x6, x7",
+            "b.ge 21f",
+            "str xzr, [x6]",
+            "add x6, x6, #8",
+            "b 21b",
+            "21:"
             );
     }
-    unsafe {
-        let p: *mut usize = 0x80000 as *mut usize;
-        *p = HELLO[0] as usize;
-    }
+    kernel_start()
+}
+
+fn kernel_start() -> ! {
+    unsafe { uart::init(); }
+
     // init();
     //
     // println!("Hello world!!!!");

@@ -12,6 +12,8 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
+arrayvec = { version = "0.7.4", default-features = false }
+bcm2837-lpa = "0.1.0"
 bitfield-struct = "0.5.3"
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 num_enum = { version = "0.7.0", default-features = false }
