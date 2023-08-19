@@ -12,11 +12,11 @@ use core::panic::PanicInfo;
 macro_rules! println {
     () => {{
         use core::fmt::Write;
-        write!(crate::uart::get(), "\n");
+        write!(crate::uart::get(), "\n").unwrap();
     }};
     ($($arg:tt)*) => {{
         use core::fmt::Write;
-        write!(crate::uart::get(), $($arg)*);
+        write!(crate::uart::get(), $($arg)*).unwrap();
         println!();
     }};
 }
@@ -24,6 +24,7 @@ macro_rules! println {
 
 mod uart;
 mod time;
+mod vc_mailbox;
 
 // mod serial;
 // mod test_runner;
@@ -106,13 +107,16 @@ global_asm!(include_str!("boot.s"));
 pub extern "C" fn __start_kernel() -> ! {
     let mut periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
 
-    unsafe { uart::init(periphs.UART1, &mut periphs.AUX); }
+    unsafe {
+        uart::init(periphs.UART1, &mut periphs.AUX);
+        vc_mailbox::init(periphs.VCMAILBOX);
+    }
 
     println!("Hello from println!!!!");
     println!("End of kernel addr = {}", unsafe {__end});
 
+
     loop {
-        println!("About to wait");
         time::wait_microsec(1_000_000);
         println!("Its been a second");
     }
