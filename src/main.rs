@@ -103,7 +103,7 @@ global_asm!(include_str!("boot.s"));
 // }
 
 #[no_mangle]
-pub extern "C" fn kernel_start() -> ! {
+pub extern "C" fn __start_kernel() -> ! {
     let mut periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
 
     unsafe { uart::init(periphs.UART1, &mut periphs.AUX); }

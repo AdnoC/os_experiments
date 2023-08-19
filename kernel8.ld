@@ -3,6 +3,7 @@
 ENTRY(_start)
 
 SECTIONS {
+  . = 0x0;
   /* Our kernel image will be placed at address 0x80000. */
   . = 0x80000;
   __start = .;
@@ -12,34 +13,33 @@ SECTIONS {
     /* The ".text" segment itself starts with the code from "boot.S". */
     /* The "_start" symbol (at the beginning of "boot.S") is at 0x80000. */
     *(.text.boot)
+    *(.text.__start_kernel) /* Provided by main.rs */
+    *(.text*) /* Everything else? */
   }
-  . = ALIGN(4096); /* Add padding to the next page boundary. */
   __text_end = .;
 
   /* Read-only data segment (for initialised const C global variables). */
-  __rodata_start = .;
-  .rodata : {
-    *(.rodata)
+  .rodata : ALIGN(8) {
+    __rodata_start = .;
+    *(.rodata*)
+    __rodata_end = .;
   }
-  . = ALIGN(4096); /* Add padding to the next page boundary. */
-  __rodata_end = .;
 
   /* Data segment (for initialised, non-const C global variables). */
-  __data_start = .;
   .data : {
-    *(.data)
+    __data_start = .;
+    *(.data*)
+    __data_end = .;
   }
-  . = ALIGN(4096); /* Add padding to the next page boundary. */
-  __data_end = .;
 
   /* BSS segment (for uninitialised C global variables). */
   /* BSS stands for "block starting symbol". */
   /* The BSS segment must be zeroed prior to entering C code. */
-  __bss_start = .;
-  .bss : {
-    *(.bss)
+  .bss (NOLOAD) : ALIGN(16) {
+    __bss_start = .;
+    *(.bss);
+    . = ALIGN(16);
+    __bss_end = .;
   }
-  . = ALIGN(4096); /* Add padding to the next page boundary. */
-  __bss_end = .;
   __end = .;
 }
