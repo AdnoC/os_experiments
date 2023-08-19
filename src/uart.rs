@@ -5,7 +5,7 @@ use core::fmt;
 use spin::{Mutex, Once};
 
 #[derive(Debug)]
-struct Controller {
+pub struct Controller {
     uart: UART1,
 }
 
@@ -38,12 +38,13 @@ impl fmt::Write for Controller {
 
 static UART: Once<Mutex<Controller>> = Once::new();
 
+pub fn get() -> spin::MutexGuard<'static, Controller> {
+    UART.get().unwrap().lock()
+}
+
 const BAUD_RATE: usize = 115200;
 const ASSUMED_CPU_CLOCK_FREQ: usize = 250_000_000;
-pub unsafe fn init() {
-    let periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
-    let uart = periphs.UART1;
-
+pub unsafe fn init(uart: UART1, ) {
     // Disable interrupts
     uart.ier().write(|w| w.bits(0));
 
@@ -60,16 +61,16 @@ pub unsafe fn init() {
     });
 
 
-    {
-        use fmt::Write;
-        let mut c = Controller { uart };
-        let _ = c.write_str("Hello World!");
-
-        let mut s = ArrayString::<10>::new();
-        for _ in 0..s.capacity() {
-            s.push(c.read_char());
-        }
-        let _ = c.write_str(&s);
-    }
-    // UART.call_once(|| Mutex::new(Controller { uart }));
+    // {
+    //     use fmt::Write;
+    //     let mut c = Controller { uart };
+    //     let _ = c.write_str("Hello World!");
+    //
+    //     let mut s = ArrayString::<10>::new();
+    //     for _ in 0..s.capacity() {
+    //         s.push(c.read_char());
+    //     }
+    //     let _ = c.write_str(&s);
+    // }
+    UART.call_once(|| Mutex::new(Controller { uart }));
 }

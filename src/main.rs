@@ -8,7 +8,22 @@
 use core::arch::asm;
 use core::panic::PanicInfo;
 
+
+macro_rules! println {
+    () => {{
+        use core::fmt::Write;
+        write!(crate::uart::get(), "\n");
+    }};
+    ($($arg:tt)*) => {{
+        use core::fmt::Write;
+        write!(crate::uart::get(), $($arg)*);
+        println!();
+    }};
+}
+
+
 mod uart;
+mod time;
 
 // mod serial;
 // mod test_runner;
@@ -40,6 +55,9 @@ fn panic(info: &PanicInfo) -> ! {
 pub static HELLO: &[u8] = b"Hello World!";
 static mut XYZ: [u8; 0xabc123] = [0; 0xabc123];
 
+extern "C" {
+    static __end: usize;
+}
 fn init() {
     // gdt::init();
     // interrupts::init_idt();
@@ -84,7 +102,17 @@ pub extern "C" fn _start() -> ! {
 }
 
 fn kernel_start() -> ! {
-    unsafe { uart::init(); }
+    let periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
+
+    unsafe { uart::init(periphs.UART1); }
+
+    println!("Hello from println!!!!");
+    println!("End of kernel addr = {}", unsafe {__end});
+
+    loop {
+        time::wait_microsec(1_000_000);
+        println!("Its been a second");
+    }
 
     // init();
     //
