@@ -24,16 +24,17 @@ pub fn wait_cycle(mut num: usize) {
 }
 pub fn wait_microsec(msec: usize) {
     let freq = timer_frequency();
-    let dt = ((freq as usize / 1000) * msec) / 250;// / 1000;
-    let now = timer_count() as usize;
-    println!("timer freq = {}, dt = {}, now = {}", freq, dt, now);
-    let mut then = now;
-    while now < then - (dt as usize) as usize {
+    let dt = ((freq as usize / 1000) * msec) / 1000;
+    let then = timer_count() as usize;
+    println!("timer freq = {}, dt = {}, then = {}, target = {}", freq, dt, then, then + dt);
+    let mut now = then;
+    let target = now.saturating_add(dt);
+    while now < target {
         let count;
         unsafe {
             asm!("mrs {}, cntpct_el0", out(reg) count);
         }
-        then = count;
+        now = count;
     }
     println!("done waiting");
     println!("now = {}", timer_count());

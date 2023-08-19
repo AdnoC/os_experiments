@@ -102,7 +102,7 @@ pub extern "C" fn _start() -> ! {
 }
 
 fn kernel_start() -> ! {
-    let periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
+    let mut periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
 
     unsafe { uart::init(periphs.UART1, &mut periphs.AUX); }
 
@@ -110,6 +110,7 @@ fn kernel_start() -> ! {
     println!("End of kernel addr = {}", unsafe {__end});
 
     loop {
+        println!("About to wait");
         time::wait_microsec(1_000_000);
         println!("Its been a second");
     }
