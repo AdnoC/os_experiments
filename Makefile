@@ -30,6 +30,10 @@ endif
 .PHONY: build
 build: target/aarch64-unknown-linux-gnu/release/os_experiments
 
+.PHONY: clean
+clean:
+	rm target/aarch64-unknown-linux-gnu/release/os_experiments
+
 .PHONY: qemu
 qemu: target/kernel.img
 	@echo "(Press Ctrl-A X to exit QEMU.)"
@@ -43,6 +47,6 @@ qemu-gdb: target/kernel.img
 target/kernel.img: target/aarch64-unknown-linux-gnu/release/os_experiments
 	${OCOPY} -O binary ./target/aarch64-unknown-linux-gnu/release/os_experiments target/kernel.img
 
-RUST_SRC = $(wildcard src/*.rs) $(wildcard src/**/*.rs)
+RUST_SRC = $(wildcard src/*.rs) $(wildcard src/**/*.rs) build.rs src/boot.s
 target/aarch64-unknown-linux-gnu/release/os_experiments: ${RUST_SRC} build.rs kernel8.ld
 	cargo build --release

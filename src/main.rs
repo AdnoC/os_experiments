@@ -5,7 +5,7 @@
 // #![test_runner(crate::test_runner::test_runner)]
 // #![reexport_test_harness_main = "test_main"]
 
-use core::arch::asm;
+use core::arch::{ asm, global_asm };
 use core::panic::PanicInfo;
 
 
@@ -59,7 +59,7 @@ extern "C" {
     static __end: usize;
 }
 fn init() {
-    // gdt::init();
+     // gdt::init();
     // interrupts::init_idt();
     // x86_64::instructions::interrupts::without_interrupts(|| {
     //     unsafe { interrupts::PICS.lock().initialize() };
@@ -67,41 +67,43 @@ fn init() {
     // x86_64::instructions::interrupts::enable();
 }
 
-// global_asm!(r#".section ".text.boot""#);
+global_asm!(include_str!("boot.s"));
+
+// #[no_mangle]
+// #[link_section = ".text.boot"]
+// pub extern "C" fn _start() -> ! {
+//     unsafe {
+//         asm!("mrs x5, CurrentEl", // Move the CurrentEL system register into x5.
+//              "ubfx x5, x5, #2, #2"); // Extract the relevant bitfield (bits 3:2).
+//
+//         asm!(
+//             // Set the SPSel register so that SP_EL0 is the stack pointer at all EL.
+//             "mrs x6, SPSel",        // Move the current SPSel  system register into x6.
+//             "and x6, x6, ~1",       // Clear the 0 bit of x6.
+//             "msr SPSel, x6",        // Set the value of SPSel to x6.
+//
+//             // Set up the stack below our code (it grows downwards).
+//             // This should be plenty big enough: only the first 4KB of memory are used.
+//             "ldr x6, =_start",
+//             "mov sp, x6"
+//             );
+//         asm!(
+//             "ldr x6, =__bss_start",
+//             "ldr x7, =__bss_end",
+//             "21:",
+//             "cmp x6, x7",
+//             "b.ge 21f",
+//             "str xzr, [x6]",
+//             "add x6, x6, #8",
+//             "b 21b",
+//             "21:"
+//             );
+//     }
+//     kernel_start()
+// }
+
 #[no_mangle]
-#[link_section = ".text.boot"]
-pub extern "C" fn _start() -> ! {
-    unsafe {
-        asm!("mrs x5, CurrentEl", // Move the CurrentEL system register into x5.
-             "ubfx x5, x5, #2, #2"); // Extract the relevant bitfield (bits 3:2).
-
-        asm!(
-            // Set the SPSel register so that SP_EL0 is the stack pointer at all EL.
-            "mrs x6, SPSel",        // Move the current SPSel  system register into x6.
-            "and x6, x6, ~1",       // Clear the 0 bit of x6.
-            "msr SPSel, x6",        // Set the value of SPSel to x6.
-
-            // Set up the stack below our code (it grows downwards).
-            // This should be plenty big enough: only the first 4KB of memory are used.
-            "ldr x6, =_start",
-            "mov sp, x6"
-            );
-        asm!(
-            "ldr x6, =__bss_start",
-            "ldr x7, =__bss_end",
-            "21:",
-            "cmp x6, x7",
-            "b.ge 21f",
-            "str xzr, [x6]",
-            "add x6, x6, #8",
-            "b 21b",
-            "21:"
-            );
-    }
-    kernel_start()
-}
-
-fn kernel_start() -> ! {
+pub extern "C" fn kernel_start() -> ! {
     let mut periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
 
     unsafe { uart::init(periphs.UART1, &mut periphs.AUX); }
