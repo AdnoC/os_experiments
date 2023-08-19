@@ -35,6 +35,11 @@ qemu: target/kernel.img
 	@echo "(Press Ctrl-A X to exit QEMU.)"
 	${QEMU} -M raspi3b -nographic -kernel target/kernel.img -serial null -serial mon:stdio
 
+.PHONY: qemu-gdb
+qemu-gdb: target/kernel.img
+	@echo "(Press Ctrl-A X to exit QEMU.)"
+	${QEMU} -M raspi3b -s -S -nographic, -serial null -serial mon:stdio -kernel target/kernel.img
+
 target/kernel.img: target/aarch64-unknown-linux-gnu/release/os_experiments
 	${OCOPY} -O binary ./target/aarch64-unknown-linux-gnu/release/os_experiments target/kernel.img
 
