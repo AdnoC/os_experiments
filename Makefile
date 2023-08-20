@@ -11,7 +11,8 @@ ifeq ($(UNAME_S), Linux)
 	export AR = aarch64-linux-gnu-ar
 	export LD = aarch64-linux-gnu-ld
 	export OCOPY = aarch64-linux-gnu-objcopy
-	export GDB = aarch64-linux-gnu-gdb
+	export GDB = gdb-multiarch
+	export GDB_HOST = $(shell dig +short $(shell hostname).local | awk '{print; exit}')
 	export CFLAGS = -march=armv8-a -Wall -O3 -nostdlib -nostartfiles -ffreestanding -mtune=cortex-a53
 	export RUSTFLAGS = -C linker=${CC} -C target-cpu=cortex-a53 -C target-feature=+strict-align,+a53,+fp-armv8,+neon -C link-arg=-nostartfiles -C link-arg=-T./kernel8.ld
 
@@ -60,7 +61,7 @@ qemu-gdb: target/kernel.img
 
 .PHONY: gdb
 gdb:
-	${GDB} -ex "target remote :1234" ${ELF_PATH}
+	${GDB} -ex "target remote ${GDB_HOST}:1234" ${ELF_PATH}
 
 target/kernel.img: ${ELF_PATH}
 	${OCOPY} -O binary ${ELF_PATH} target/kernel.img
