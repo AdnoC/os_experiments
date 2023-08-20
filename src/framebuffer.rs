@@ -14,7 +14,7 @@ struct Pixel([u8; 3]);
 pub fn frame() {
     let mut mbox = mailbox::get();
     println!("Gettting firmware revision");
-    let _ = mbox.send_and_poll_recieve_one(BoardModelRequest {}).unwrap();
+    // let _ = mbox.send_and_poll_recieve_one(BoardModelRequest {}).unwrap();
     let _ = mbox.send_and_poll_recieve_one(FBSetPhysicalSizeRequest { width: 640, height: 480 }).unwrap();
     let _ = mbox.send_and_poll_recieve_one(FBSetVirtualSizeRequest { width: 640, height: 480 }).unwrap();
     let _ = mbox.send_and_poll_recieve_one(FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}).unwrap();

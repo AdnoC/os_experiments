@@ -4,6 +4,7 @@ use bitfield_struct::bitfield;
 use paste::paste;
 use core::fmt;
 use spin::{Mutex, Once};
+use core::arch::asm;
 
 pub mod tags;
 use tags::*;
@@ -75,8 +76,11 @@ T: TagInterfaceRequest,
 {
         use core::cell::UnsafeCell;
 
-        while self.send_is_full() {}
+        while self.send_is_full() {
+            unsafe { asm!("nop") };
+        }
 
+        println!("size = {}", core::mem::size_of::<PropertyBuffer<T::Tag>>() as u32);
         let message = UnsafeCell::new(
             PropertyBuffer {
                 size: core::mem::size_of::<PropertyBuffer<T::Tag>>() as u32,
@@ -86,10 +90,13 @@ T: TagInterfaceRequest,
             }
         );
         let m = message.get();
+ core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::Release);
         // println!("m = {:?}", m); // WHY does this break framebuffer???
         let data = MessagePtr::new()
             .with_channel(8)
             .with_prop_buf(m).into();
+        {
+        }
         unsafe {
             self.mbox.write.write_with_zero(|w| w.bits(data));
         }
@@ -97,6 +104,7 @@ T: TagInterfaceRequest,
         while self.read_is_empty() {}
         let mut res_ptr = MessagePtr::new();
         while res_ptr.channel() != 8 {
+            unsafe { asm!("nop") };
             let res = self.mbox.read.read().bits();
             res_ptr = MessagePtr::from(res);
         }
@@ -106,6 +114,7 @@ T: TagInterfaceRequest,
             return Err(());
         }
 
+        println!("rerq = {}", res_buf.req_res_code.bits());
         res_buf.tags.response().ok_or(())
     }
 

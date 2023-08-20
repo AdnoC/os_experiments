@@ -1,5 +1,13 @@
 .section ".text.boot"
 _start:
+  mrs x1, mpidr_el1
+  and x1, x1, #3
+  cbz x1, primary_core
+second_core_trap:
+  wfe
+  b second_core_trap
+primary_core:
+
   mrs x5, CurrentEl // Move the CurrentEL system register into x5.
   ubfx x5, x5, #2, #2 // Extract the relevant bitfield (bits 3:2).
 

@@ -11,7 +11,7 @@ pub struct TagReqResCode {
 }
 
 #[derive(Clone, Copy)]
-#[repr(C, align(32))]
+#[repr(C)]
 pub struct Tag<Req: Copy, Res: Copy> {
     id: TagValue,
     size: u32,
