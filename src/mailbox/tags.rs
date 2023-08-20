@@ -81,6 +81,46 @@ pub trait TagInterface: fmt::Debug {
     fn response(&self) -> Option<Self::Res>;
 }
 
+pub trait TagInterfaceRequest {
+    type Tag: TagInterface;
+    fn into_tag(self) -> Self::Tag;
+}
+
+pub trait TagBatch {
+    type Res;
+    fn responses(&self) -> Self::Res;
+}
+impl<T1: TagInterface> TagBatch for (T1,) {
+    type Res = (Option<T1::Res>,);
+    fn responses(&self) -> Self::Res {
+        (self.0.response(),)
+    }
+}
+impl<T1: TagInterface, T2: TagInterface> TagBatch for (T1, T2) {
+    type Res = (Option<T1::Res>, Option<T2::Res>);
+    fn responses(&self) -> Self::Res {
+        (self.0.response(), self.1.response())
+    }
+}
+impl<T1: TagInterface, T2: TagInterface, T3: TagInterface> TagBatch for (T1, T2, T3) {
+    type Res = (Option<T1::Res>, Option<T2::Res>, Option<T3::Res>);
+    fn responses(&self) -> Self::Res {
+        (self.0.response(), self.1.response(), self.2.response())
+    }
+}
+impl<T1: TagInterface, T2: TagInterface, T3: TagInterface, T4: TagInterface> TagBatch for (T1, T2, T3, T4) {
+    type Res = (Option<T1::Res>, Option<T2::Res>, Option<T3::Res>, Option<T4::Res>);
+    fn responses(&self) -> Self::Res {
+        (self.0.response(), self.1.response(), self.2.response(), self.3.response())
+    }
+}
+impl<T1: TagInterface, T2: TagInterface, T3: TagInterface, T4: TagInterface, T5: TagInterface> TagBatch for (T1, T2, T3, T4, T5) {
+    type Res = (Option<T1::Res>, Option<T2::Res>, Option<T3::Res>, Option<T4::Res>, Option<T5::Res>);
+    fn responses(&self) -> Self::Res {
+        (self.0.response(), self.1.response(), self.2.response(), self.3.response(), self.4.response())
+    }
+}
+
 macro_rules! define_tags {
     ($({
         $name:ident, $enum_value:expr, {$($req_field_name:ident:$req_field_type:ty),*}, {$($res_field_name:ident:$res_field_type:ty),*}
@@ -105,6 +145,14 @@ define_tag!([<$name Tag>], $enum_value, [<$name Request>], [<$name Response>], {
                 $(
                     pub $req_field_name: $req_field_type,
                 )*
+            }
+
+            impl TagInterfaceRequest for $req_name {
+                type Tag = $tag_name;
+
+                fn into_tag(self) -> Self::Tag {
+                    Self::Tag::from_request(self)
+                }
             }
 
             #[repr(C)]
