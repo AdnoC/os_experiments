@@ -54,6 +54,11 @@ clean:
 	rm -f ${ELF_PATH}
 	rm -f ${BUILD_DIR}/.cargo-lock
 
+.PHONY: lint-fix
+lint-fix:
+	cargo fix ${RELEASE_FLAG} --allow-dirty
+
+
 .PHONY: qemu
 qemu: target/kernel.img
 	@echo "(Press Ctrl-A X to exit QEMU.)"

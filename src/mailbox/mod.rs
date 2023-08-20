@@ -2,8 +2,8 @@ use bcm2837_lpa::VCMAILBOX;
 use bitfield_struct::bitfield;
 use bitflags::bitflags;
 use core::arch::asm;
-use core::fmt;
-use paste::paste;
+
+
 use spin::{Mutex, Once};
 
 pub mod tags;

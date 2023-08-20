@@ -1,6 +1,6 @@
 use bcm2837_lpa::{AUX, UART1};
 
-use arrayvec::ArrayString;
+
 use core::fmt;
 use spin::{Mutex, Once};
 

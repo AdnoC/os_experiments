@@ -1,6 +1,6 @@
 use crate::mailbox;
 use crate::mailbox::tags::{
-    BoardModelRequest, FBAllocateBufferRequest, FBSetBitsPerPixelRequest, FBSetPhysicalSizeRequest,
+    FBAllocateBufferRequest, FBSetBitsPerPixelRequest, FBSetPhysicalSizeRequest,
     FBSetVirtualSizeRequest, TagInterfaceRequest,
 };
 use core::{fmt, num::NonZeroU8};
@@ -52,7 +52,7 @@ pub struct TextLogData {
 }
 
 impl FrameBuffer {
-    fn write_char_impl(&mut self, c: AsciiChar) {
+    fn write_char_impl(&mut self, _c: AsciiChar) {
         todo!()
     }
 }

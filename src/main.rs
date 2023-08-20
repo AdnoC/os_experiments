@@ -5,7 +5,7 @@
 // #![test_runner(crate::test_runner::test_runner)]
 // #![reexport_test_harness_main = "test_main"]
 
-use core::arch::{asm, global_asm};
+use core::arch::{global_asm};
 use core::convert::Infallible;
 use core::panic::PanicInfo;
 
