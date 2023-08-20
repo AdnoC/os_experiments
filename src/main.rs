@@ -5,10 +5,9 @@
 // #![test_runner(crate::test_runner::test_runner)]
 // #![reexport_test_harness_main = "test_main"]
 
-use core::arch::{ asm, global_asm };
-use core::panic::PanicInfo;
+use core::arch::{asm, global_asm};
 use core::convert::Infallible;
-
+use core::panic::PanicInfo;
 
 macro_rules! println {
     () => {{
@@ -52,11 +51,10 @@ macro_rules! eprintln {
     }};
 }
 
-
-mod uart;
-mod time;
-mod mailbox;
 mod framebuffer;
+mod mailbox;
+mod time;
+mod uart;
 
 // mod serial;
 // mod test_runner;
@@ -92,7 +90,7 @@ extern "C" {
     static __end: usize;
 }
 fn init() {
-     // gdt::init();
+    // gdt::init();
     // interrupts::init_idt();
     // x86_64::instructions::interrupts::without_interrupts(|| {
     //     unsafe { interrupts::PICS.lock().initialize() };
@@ -135,7 +133,6 @@ global_asm!(include_str!("boot.s"));
 //     kernel_start()
 // }
 
-
 #[no_mangle]
 pub extern "C" fn __start_kernel() -> ! {
     if let Err(err) = main() {
@@ -155,10 +152,9 @@ fn main() -> Result<Infallible, &'static str> {
     }
 
     println!("Hello from println!!!!");
-    println!("End of kernel addr = {}", unsafe {__end});
+    println!("End of kernel addr = {}", unsafe { __end });
 
     framebuffer::draw_text("HELLOOOOOOO");
-
 
     loop {
         time::wait_microsec(1_000_000);
@@ -171,5 +167,4 @@ fn main() -> Result<Infallible, &'static str> {
 
     // #[cfg(test)]
     // test_main();
-
 }

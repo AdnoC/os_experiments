@@ -27,9 +27,15 @@ pub fn wait_microsec(msec: u64) {
     let freq = timer_frequency();
     let dt = ((freq as u64 / 1000) * msec) / 1000;
     let then = timer_count();
-    println!("timer freq = {}, dt = {}, then = {}, target = {}", freq, dt, then, then + dt);
+    println!(
+        "timer freq = {}, dt = {}, then = {}, target = {}",
+        freq,
+        dt,
+        then,
+        then + dt
+    );
     let target = then.saturating_add(dt) as u64;
-    while timer_count() < target { }
+    while timer_count() < target {}
     println!("done waiting");
     println!("now = {}", timer_count());
 }

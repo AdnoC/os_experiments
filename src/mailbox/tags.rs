@@ -1,13 +1,13 @@
-use bitflags::bitflags;
 use bitfield_struct::bitfield;
-use paste::paste;
+use bitflags::bitflags;
 use core::fmt;
+use paste::paste;
 
 #[bitfield(u32)]
 pub struct TagReqResCode {
     #[bits(31)]
     _reserved: u32,
-    is_response: bool
+    is_response: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -29,24 +29,30 @@ impl<Req: Copy, Res: Copy> Tag<Req, Res> {
     }
 }
 
-impl<Req, Res> fmt::Debug for Tag<Req, Res> where
+impl<Req, Res> fmt::Debug for Tag<Req, Res>
+where
     Req: Copy + fmt::Debug,
-    Res: Copy + fmt::Debug {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            static INVALID_STR: &'static str = "<INVALID>";
-            let mut f = f.debug_struct("Tag");
-            f.field("id", &self.id)
-                .field("size", &self.size)
-                .field("req_res_code", &self.req_res_code);
-            if self.is_request() {
-                unsafe { f.field("req", &self.data.req); }
-            } else if self.is_response() {
-                unsafe { f.field("req", &self.data.res); }
-            } else {
-                f.field("union<req, res>", &INVALID_STR);
+    Res: Copy + fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        static INVALID_STR: &'static str = "<INVALID>";
+        let mut f = f.debug_struct("Tag");
+        f.field("id", &self.id)
+            .field("size", &self.size)
+            .field("req_res_code", &self.req_res_code);
+        if self.is_request() {
+            unsafe {
+                f.field("req", &self.data.req);
             }
-            f.finish()
+        } else if self.is_response() {
+            unsafe {
+                f.field("req", &self.data.res);
+            }
+        } else {
+            f.field("union<req, res>", &INVALID_STR);
         }
+        f.finish()
+    }
 }
 
 #[repr(C)]
@@ -107,16 +113,42 @@ impl<T1: TagInterface, T2: TagInterface, T3: TagInterface> TagBatch for (T1, T2,
         (self.0.response(), self.1.response(), self.2.response())
     }
 }
-impl<T1: TagInterface, T2: TagInterface, T3: TagInterface, T4: TagInterface> TagBatch for (T1, T2, T3, T4) {
-    type Res = (Option<T1::Res>, Option<T2::Res>, Option<T3::Res>, Option<T4::Res>);
+impl<T1: TagInterface, T2: TagInterface, T3: TagInterface, T4: TagInterface> TagBatch
+    for (T1, T2, T3, T4)
+{
+    type Res = (
+        Option<T1::Res>,
+        Option<T2::Res>,
+        Option<T3::Res>,
+        Option<T4::Res>,
+    );
     fn responses(&self) -> Self::Res {
-        (self.0.response(), self.1.response(), self.2.response(), self.3.response())
+        (
+            self.0.response(),
+            self.1.response(),
+            self.2.response(),
+            self.3.response(),
+        )
     }
 }
-impl<T1: TagInterface, T2: TagInterface, T3: TagInterface, T4: TagInterface, T5: TagInterface> TagBatch for (T1, T2, T3, T4, T5) {
-    type Res = (Option<T1::Res>, Option<T2::Res>, Option<T3::Res>, Option<T4::Res>, Option<T5::Res>);
+impl<T1: TagInterface, T2: TagInterface, T3: TagInterface, T4: TagInterface, T5: TagInterface>
+    TagBatch for (T1, T2, T3, T4, T5)
+{
+    type Res = (
+        Option<T1::Res>,
+        Option<T2::Res>,
+        Option<T3::Res>,
+        Option<T4::Res>,
+        Option<T5::Res>,
+    );
     fn responses(&self) -> Self::Res {
-        (self.0.response(), self.1.response(), self.2.response(), self.3.response(), self.4.response())
+        (
+            self.0.response(),
+            self.1.response(),
+            self.2.response(),
+            self.3.response(),
+            self.4.response(),
+        )
     }
 }
 

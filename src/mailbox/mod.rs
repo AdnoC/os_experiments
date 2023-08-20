@@ -1,10 +1,10 @@
 use bcm2837_lpa::VCMAILBOX;
-use bitflags::bitflags;
 use bitfield_struct::bitfield;
-use paste::paste;
-use core::fmt;
-use spin::{Mutex, Once};
+use bitflags::bitflags;
 use core::arch::asm;
+use core::fmt;
+use paste::paste;
+use spin::{Mutex, Once};
 
 pub mod tags;
 use tags::*;
@@ -71,32 +71,34 @@ impl Mailbox {
         state.contains(Status::EMPTY)
     }
 
-    pub fn send_and_poll_recieve_one<T>(&mut self, req: T) -> Result<<<T as TagInterfaceRequest>::Tag as TagInterface>::Res, ()> where
-T: TagInterfaceRequest,
-{
+    pub fn send_and_poll_recieve_one<T>(
+        &mut self,
+        req: T,
+    ) -> Result<<<T as TagInterfaceRequest>::Tag as TagInterface>::Res, ()>
+    where
+        T: TagInterfaceRequest,
+    {
         use core::cell::UnsafeCell;
 
         while self.send_is_full() {
             unsafe { asm!("nop") };
         }
 
-        println!("size = {}", core::mem::size_of::<PropertyBuffer<T::Tag>>() as u32);
-        let message = UnsafeCell::new(
-            PropertyBuffer {
-                size: core::mem::size_of::<PropertyBuffer<T::Tag>>() as u32,
-                req_res_code: BufferReqResCode::PROCESS_REQUEST,
-                tags: req.into_tag(),
-                end_tag: 0,
-            }
+        println!(
+            "size = {}",
+            core::mem::size_of::<PropertyBuffer<T::Tag>>() as u32
         );
+        let message = UnsafeCell::new(PropertyBuffer {
+            size: core::mem::size_of::<PropertyBuffer<T::Tag>>() as u32,
+            req_res_code: BufferReqResCode::PROCESS_REQUEST,
+            tags: req.into_tag(),
+            end_tag: 0,
+        });
         let m = message.get();
- core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::Release);
+        core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::Release);
         // println!("m = {:?}", m); // WHY does this break framebuffer???
-        let data = MessagePtr::new()
-            .with_channel(8)
-            .with_prop_buf(m).into();
-        {
-        }
+        let data = MessagePtr::new().with_channel(8).with_prop_buf(m).into();
+        {}
         unsafe {
             self.mbox.write.write_with_zero(|w| w.bits(data));
         }
@@ -110,7 +112,10 @@ T: TagInterfaceRequest,
         }
         let res_buf_ptr = res_ptr.prop_buf::<T::Tag>();
         let res_buf = unsafe { &*res_buf_ptr };
-        if res_buf.req_res_code.contains(BufferReqResCode::REQUEST_ERROR) {
+        if res_buf
+            .req_res_code
+            .contains(BufferReqResCode::REQUEST_ERROR)
+        {
             return Err(());
         }
 
@@ -118,23 +123,22 @@ T: TagInterfaceRequest,
         res_buf.tags.response().ok_or(())
     }
 
-// NOTE: Does not currently work. Must check on real hardware
+    // NOTE: Does not currently work. Must check on real hardware
     pub fn send_and_poll_recieve_batch<T: TagBatch>(&mut self, batch: T) -> Result<T::Res, ()> {
         use core::cell::UnsafeCell;
 
         while self.send_is_full() {}
 
-        let message = UnsafeCell::new(
-            PropertyBuffer {
-                size: core::mem::size_of::<PropertyBuffer<T>>() as u32,
-                req_res_code: BufferReqResCode::PROCESS_REQUEST,
-                tags: batch,
-                end_tag: 0,
-            }
-        );
+        let message = UnsafeCell::new(PropertyBuffer {
+            size: core::mem::size_of::<PropertyBuffer<T>>() as u32,
+            req_res_code: BufferReqResCode::PROCESS_REQUEST,
+            tags: batch,
+            end_tag: 0,
+        });
         let data = MessagePtr::new()
             .with_channel(8)
-            .with_prop_buf(message.get()).into();
+            .with_prop_buf(message.get())
+            .into();
         unsafe {
             self.mbox.write.write_with_zero(|w| w.bits(data));
         }
@@ -148,7 +152,10 @@ T: TagInterfaceRequest,
         let res_buf_ptr = res_ptr.prop_buf::<T>();
         let res_buf = unsafe { &*res_buf_ptr };
         println!("buf: {:#?}", res_buf);
-        if res_buf.req_res_code.contains(BufferReqResCode::REQUEST_ERROR) {
+        if res_buf
+            .req_res_code
+            .contains(BufferReqResCode::REQUEST_ERROR)
+        {
             return Err(());
         }
         Ok(res_buf.tags.responses())
