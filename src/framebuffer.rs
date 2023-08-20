@@ -5,6 +5,7 @@ use crate::mailbox::tags::{
     FBSetVirtualSizeRequest,
     FBSetBitsPerPixelRequest,
     FBAllocateBufferRequest,
+    TagInterfaceRequest
 };
 
 #[repr(C)]
@@ -14,22 +15,18 @@ struct Pixel([u8; 3]);
 pub fn frame() {
     let mut mbox = mailbox::get();
     println!("Gettting firmware revision");
-    // let _ = mbox.send_and_poll_recieve_one(BoardModelRequest {}).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetPhysicalSizeRequest { width: 640, height: 480 }).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetVirtualSizeRequest { width: 640, height: 480 }).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}).unwrap();
-    let res = mbox.send_and_poll_recieve_one(FBAllocateBufferRequest { alignment: 16}).unwrap();
-    println!("Res: {:?}", res);
 
-    // let res = mbox.send_and_poll_recieve_batch((
-    //         FBSetPhysicalSizeRequest { width: 640, height: 480 }.into_tag(),
-    //         FBSetVirtualSizeRequest { width: 640, height: 480 }.into_tag(),
-    //         FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}.into_tag(),
-    //         )).unwrap();
+    let res = mbox.send_and_poll_recieve_batch((
+            FBSetPhysicalSizeRequest { width: 640, height: 480 }.into_tag(),
+            FBSetVirtualSizeRequest { width: 640, height: 480 }.into_tag(),
+            FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}.into_tag(),
+            FBAllocateBufferRequest { alignment: 16}.into_tag(),
+    )).unwrap();
 
 
 
     println!("Responses: {:#?}", res);
+    let res = res.3.unwrap();
 
     let ptr = res.base_address as *mut u32 as *mut Pixel;
     println!("================ MODULO = {}", res.size % 3);
