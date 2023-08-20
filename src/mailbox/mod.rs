@@ -85,9 +85,11 @@ T: TagInterfaceRequest,
                 end_tag: 0,
             }
         );
+        let m = message.get();
+        // println!("m = {:?}", m); // WHY does this break framebuffer???
         let data = MessagePtr::new()
             .with_channel(8)
-            .with_prop_buf(message.get()).into();
+            .with_prop_buf(m).into();
         unsafe {
             self.mbox.write.write_with_zero(|w| w.bits(data));
         }
@@ -153,7 +155,3 @@ pub fn get() -> spin::MutexGuard<'static, Mailbox> {
 pub unsafe fn init(mbox: VCMAILBOX) {
     MAILBOX.call_once(|| Mutex::new(Mailbox { mbox }));
 }
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-struct Pixel([u8; 3]);
