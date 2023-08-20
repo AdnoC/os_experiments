@@ -1,4 +1,9 @@
+use static_assertions::assert_eq_size;
 use spin::{Once, Mutex};
+use core::{
+   num::NonZeroU8,
+   fmt,
+};
 use embedded_graphics::{
     prelude::*,
     pixelcolor::Rgb888,
@@ -13,13 +18,72 @@ use crate::mailbox::tags::{
     TagInterfaceRequest
 };
 
+const PREFERRED_WIDTH: usize = 640;
+const PREFERRED_HEIGHT: usize = 480;
+const MONO_TEXT_WIDTH: usize = 6;
+const MONO_TEXT_HEIGHT: usize = 10;
+const TEXT_BUFFER_LEN: usize = (PREFERRED_WIDTH / MONO_TEXT_WIDTH) * (PREFERRED_HEIGHT / MONO_TEXT_HEIGHT);
+
 pub struct FrameBuffer {
     buffer: BufferPtr,
     buff_size: usize,
     dims: Size,
+    display_mode: DisplayMode,
 }
 struct BufferPtr(*mut FBPixel);
 unsafe impl Send for BufferPtr {}
+
+enum DisplayMode {
+    // Append text to show on screen.
+    // If too big the oldest text is removed.
+    TextLog(TextLogData),
+}
+
+pub struct TextLogData {
+    text: [AsciiChar; TEXT_BUFFER_LEN],
+    cursor: (usize, usize)
+}
+
+impl FrameBuffer {
+    fn write_char_impl(&mut self, c: AsciiChar) {
+        todo!()
+    }
+}
+
+impl fmt::Write for FrameBuffer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if ! matches!(self.display_mode, DisplayMode::TextLog(_)) {
+            return Err(fmt::Error);
+        }
+        for c in s.chars() {
+            self.write_char_impl(c.into());
+        }
+        Ok(())
+    }
+
+    fn write_char(&mut self, c: char) -> fmt::Result {
+        if ! matches!(self.display_mode, DisplayMode::TextLog(_)) {
+            return Err(fmt::Error);
+        }
+
+        self.write_char_impl(c.into());
+        Ok(())
+    }
+}
+
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(transparent)]
+pub struct AsciiChar(Option<NonZeroU8>);
+assert_eq_size!(AsciiChar, u8); // Make sure the compiler finds the '0' hole for 'None'
+impl core::convert::From<char> for AsciiChar {
+    fn from(val: char) -> Self {
+        if !val.is_ascii() {
+            return AsciiChar(None);
+        }
+        AsciiChar(NonZeroU8::new(val as u8))
+    }
+}
 
 impl core::ops::Index<(u32, u32)> for FrameBuffer {
     type Output = FBPixel;
@@ -121,6 +185,10 @@ pub unsafe fn init() -> Result<(), &'static str> {
         buffer: BufferPtr(res.base_address as *mut u32 as *mut FBPixel),
         buff_size: res.size as usize,
         dims: Size { width, height },
+        display_mode: DisplayMode::TextLog(TextLogData {
+            text: [AsciiChar(None); TEXT_BUFFER_LEN],
+            cursor: (0, 0),
+        }),
     }));
 
     Ok(())
