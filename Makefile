@@ -37,7 +37,7 @@ clean:
 .PHONY: qemu
 qemu: target/kernel.img
 	@echo "(Press Ctrl-A X to exit QEMU.)"
-	${QEMU} -M raspi3b -nographic -kernel target/kernel.img -serial null -serial mon:stdio
+	${QEMU} -M raspi3b -kernel target/kernel.img -serial null -serial mon:stdio
 
 .PHONY: qemu-gdb
 qemu-gdb: target/kernel.img

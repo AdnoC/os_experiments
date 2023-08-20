@@ -113,6 +113,13 @@ union TagData<Req: Copy, Res: Copy> {
 enum TagValue {
     FirmwareRevision = 0x0_0001,
     BoardModel = 0x1_0001,
+    FBAllocateBuffer = 0x4_0001,
+    FBReleaseBuffer = 0x4_8001,
+    FBGetPhysicalSize = 0x4_0003,
+    FBSetPhysicalSize = 0x4_8003,
+    FBSetVirtualSize = 0x4_8004,
+    // AKA Depth
+    FBSetBitsPerPixel = 0x4_8005,
 }
 
 trait TagInterface: fmt::Debug {
@@ -139,7 +146,6 @@ impl Mailbox {
     pub fn send_and_poll_recieve_one<T: TagInterface>(&mut self, req: T::Req) -> T::Res {
         use core::cell::UnsafeCell;
 
-        println!("Waiting for space in outbound");
         while self.send_is_full() {}
 
         let message = UnsafeCell::new(
@@ -153,25 +159,18 @@ impl Mailbox {
         let data = MessagePtr::new()
             .with_channel(8)
             .with_prop_buf(message.get()).into();
-        println!("Writing ptr to outbount");
         unsafe {
             self.mbox.write.write_with_zero(|w| w.bits(data));
         }
 
-        println!("Waiting for inbound");
         while self.read_is_empty() {}
         let mut res_ptr = MessagePtr::new();
-        println!("Got res for channel #{}", res_ptr.channel());
         while res_ptr.channel() != 8 {
-            println!("Got new res for channel #{}", res_ptr.channel());
             let res = self.mbox.read.read().bits();
             res_ptr = MessagePtr::from(res);
         }
-        println!("Happy with the channel. loading response buffer");
         let res_buf_ptr = res_ptr.prop_buf::<T>();
         let res_buf = unsafe { &*res_buf_ptr };
-        println!("buf = {:#?}", res_buf);
-        println!("tag = {:#?}", res_buf.tags);
         res_buf.tags.response().unwrap()
     }
 }
@@ -181,6 +180,46 @@ pub unsafe fn init(mbox: VCMAILBOX) {
     let res = mbox.send_and_poll_recieve_one::<BoardModelTag>(BoardModelRequest {});
     println!("Res: {:?}", res);
     println!("firmware = {}", res.model);
+
+    println!("Set phys size");
+    let res = mbox.send_and_poll_recieve_one::<FBSetPhysicalSizeTag>(FBSetPhysicalSizeRequest { width: 640, height: 480 });
+    println!("Res: {:?}", res);
+
+    println!("Set virt size");
+    let res = mbox.send_and_poll_recieve_one::<FBSetVirtualSizeTag>(FBSetVirtualSizeRequest { width: 640, height: 480 });
+    println!("Res: {:?}", res);
+
+    println!("Set bits per pixel");
+    let res = mbox.send_and_poll_recieve_one::<FBSetBitsPerPixelTag>(FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8});
+    println!("Res: {:?}", res);
+
+    println!("Alloc framebuffer");
+    let res = mbox.send_and_poll_recieve_one::<FBAllocateBufferTag>(FBAllocateBufferRequest { alignment: 16});
+    println!("Res: {:?}", res);
+    let ptr = res.base_address as *mut u32 as *mut Pixel;
+    println!("================ MODULO = {}", res.size % 3);
+    let size = res.size / 3;
+    for i in 0..size {
+        unsafe {
+
+            (*ptr.add(i as usize)).0[0] = u8::MAX;
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+struct Pixel([u8; 3]);
+
+macro_rules! define_tags {
+    ($({
+        $name:ident, $enum_value:expr, {$($req_field_name:ident:$req_field_type:ty),*}, {$($res_field_name:ident:$res_field_type:ty),*}
+    }),*) => {
+
+        $(
+            define_tag!($name, $enum_value, {$($req_field_name:$req_field_type),*}, {$($res_field_name:$res_field_type),*});
+        )*
+    }
 }
 
 macro_rules! define_tag {
@@ -238,20 +277,83 @@ define_tag!([<$name Tag>], $enum_value, [<$name Request>], [<$name Response>], {
 }
 
 // https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
-define_tag! {
-    FirmwareRevision,
-    TagValue::FirmwareRevision,
-    {},
+define_tags! {
     {
-        revision: u32
-    }
-}
+        FirmwareRevision,
+        TagValue::FirmwareRevision,
+        {},
+        {
+            revision: u32
+        }
+    },
+    {
+        BoardModel,
+        TagValue::BoardModel,
+        {},
+        {
+            model: u32
+        }
+    },
 
-define_tag! {
-    BoardModel,
-    TagValue::BoardModel,
-    {},
+    // Frame buffer stuff
     {
-        model: u32
+        FBAllocateBuffer,
+        TagValue::FBAllocateBuffer,
+        {
+            alignment: u32
+        },
+        {
+            base_address: u32,
+            size: u32
+        }
+    },
+    {
+        FBReleaseBuffer,
+        TagValue::FBReleaseBuffer,
+        {},
+        {}
+    },
+    {
+        FBGetPhysicalSize,
+        TagValue::FBGetPhysicalSize,
+        {},
+        {
+            width: u32,
+            height: u32
+        }
+    },
+    {
+        FBSetPhysicalSize,
+        TagValue::FBSetPhysicalSize,
+        {
+            width: u32,
+            height: u32
+        },
+        {
+            width: u32,
+            height: u32
+        }
+    },
+    {
+        FBSetVirtualSize,
+        TagValue::FBSetVirtualSize,
+        {
+            width: u32,
+            height: u32
+        },
+        {
+            width: u32,
+            height: u32
+        }
+    },
+    {
+        FBSetBitsPerPixel,
+        TagValue::FBSetBitsPerPixel,
+        {
+            bpp: u32
+        },
+        {
+            bpp: u32
+        }
     }
 }
