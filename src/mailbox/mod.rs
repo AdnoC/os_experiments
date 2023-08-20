@@ -3,8 +3,9 @@ use bitflags::bitflags;
 use bitfield_struct::bitfield;
 use paste::paste;
 use core::fmt;
+use spin::{Mutex, Once};
 
-mod tags;
+pub mod tags;
 use tags::*;
 
 #[repr(u8)]
@@ -143,37 +144,14 @@ T: TagInterfaceRequest,
     }
 }
 
+static MAILBOX: Once<Mutex<Mailbox>> = Once::new();
+
+pub fn get() -> spin::MutexGuard<'static, Mailbox> {
+    MAILBOX.get().unwrap().lock()
+}
 
 pub unsafe fn init(mbox: VCMAILBOX) {
-    let mut mbox = Mailbox { mbox };
-    println!("Gettting firmware revision");
-    let _ = mbox.send_and_poll_recieve_one(BoardModelRequest {}).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetPhysicalSizeRequest { width: 640, height: 480 }).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetVirtualSizeRequest { width: 640, height: 480 }).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}).unwrap();
-    let res = mbox.send_and_poll_recieve_one(FBAllocateBufferRequest { alignment: 16}).unwrap();
-    println!("Res: {:?}", res);
-
-    // let res = mbox.send_and_poll_recieve_batch((
-    //         FBSetPhysicalSizeRequest { width: 640, height: 480 }.into_tag(),
-    //         FBSetVirtualSizeRequest { width: 640, height: 480 }.into_tag(),
-    //         FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}.into_tag(),
-    //         )).unwrap();
-
-
-
-    println!("Responses: {:#?}", res);
-
-    let res = mbox.send_and_poll_recieve_one(FBAllocateBufferRequest { alignment: 16}).unwrap();
-    let ptr = res.base_address as *mut u32 as *mut Pixel;
-    println!("================ MODULO = {}", res.size % 3);
-    let size = res.size / 3;
-    for i in 0..size {
-        unsafe {
-
-            (*ptr.add(i as usize)).0[0] = u8::MAX;
-        }
-    }
+    MAILBOX.call_once(|| Mutex::new(Mailbox { mbox }));
 }
 
 #[repr(C)]

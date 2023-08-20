@@ -25,6 +25,7 @@ macro_rules! println {
 mod uart;
 mod time;
 mod mailbox;
+mod framebuffer;
 
 // mod serial;
 // mod test_runner;
@@ -111,6 +112,7 @@ pub extern "C" fn __start_kernel() -> ! {
         uart::init(periphs.UART1, &mut periphs.AUX);
         mailbox::init(periphs.VCMAILBOX);
     }
+    framebuffer::frame();
 
     println!("Hello from println!!!!");
     println!("End of kernel addr = {}", unsafe {__end});
