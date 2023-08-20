@@ -7,6 +7,7 @@
 
 use core::arch::{ asm, global_asm };
 use core::panic::PanicInfo;
+use core::convert::Infallible;
 
 
 macro_rules! println {
@@ -134,7 +135,6 @@ global_asm!(include_str!("boot.s"));
 //     kernel_start()
 // }
 
-enum Never {}
 
 #[no_mangle]
 pub extern "C" fn __start_kernel() -> ! {
@@ -145,7 +145,7 @@ pub extern "C" fn __start_kernel() -> ! {
 
     loop {}
 }
-fn main() -> Result<Never, &'static str> {
+fn main() -> Result<Infallible, &'static str> {
     let mut periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
 
     unsafe {
@@ -156,6 +156,8 @@ fn main() -> Result<Never, &'static str> {
 
     println!("Hello from println!!!!");
     println!("End of kernel addr = {}", unsafe {__end});
+
+    framebuffer::draw_text("HELLOOOOOOO");
 
 
     loop {
