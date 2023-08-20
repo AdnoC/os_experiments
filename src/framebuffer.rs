@@ -1,3 +1,4 @@
+use spin::{Once, Mutex};
 use crate::mailbox;
 use crate::mailbox::tags::{
     BoardModelRequest,
@@ -8,25 +9,37 @@ use crate::mailbox::tags::{
     TagInterfaceRequest
 };
 
+struct FrameBuffer {
+    buffer: BufferPtr,
+    size: usize,
+}
+struct BufferPtr(*mut Pixel);
+unsafe impl Send for BufferPtr {}
+
+static FRAMEBUFFER: Once<Mutex<FrameBuffer>> = Once::new();
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 struct Pixel([u8; 3]);
 
-pub fn frame() {
+pub fn get() -> spin::MutexGuard<'static, FrameBuffer> {
+    FRAMEBUFFER.get().unwrap().lock()
+}
+
+pub unsafe fn init() -> Result<(), &'static str> {
     let mut mbox = mailbox::get();
-    println!("Gettting firmware revision");
 
     let res = mbox.send_and_poll_recieve_batch((
             FBSetPhysicalSizeRequest { width: 640, height: 480 }.into_tag(),
             FBSetVirtualSizeRequest { width: 640, height: 480 }.into_tag(),
             FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}.into_tag(),
             FBAllocateBufferRequest { alignment: 16}.into_tag(),
-    )).unwrap();
+    )).map_err(|_| "Batch framebuffer init failed")?;
 
 
 
     println!("Responses: {:#?}", res);
-    let res = res.3.unwrap();
+    let res = res.3.ok_or("FameBuffer mail did not get a response")?;
 
     let ptr = res.base_address as *mut u32 as *mut Pixel;
     println!("================ MODULO = {}", res.size % 3);
@@ -37,4 +50,9 @@ pub fn frame() {
             (*ptr.add(i as usize)).0[0] = u8::MAX;
         }
     }
+
+
+    FRAMEBUFFER.call_once(|| Mutex::new(FrameBuffer { buffer: BufferPtr(res.base_address as *mut u32 as *mut Pixel), size: res.size as usize }));
+
+    Ok(())
 }
