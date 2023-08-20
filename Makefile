@@ -1,3 +1,6 @@
+# NOTE: I have a Windows machine and a macbook. I only access Linux via the WSL.
+# Thus any "Linux"-specific config stuff is for the Windows machine.
+
 UNAME_S = $(shell uname -s)
 
 QEMU = qemu-system-aarch64
@@ -12,6 +15,8 @@ ifeq ($(UNAME_S), Linux)
 	export LD = aarch64-linux-gnu-ld
 	export OCOPY = aarch64-linux-gnu-objcopy
 	export GDB = gdb-multiarch
+	# WSL can't access the Windows-based qemu through localhost.
+	# We have to find the actual IP address of the host.
 	export GDB_HOST = $(shell dig +short $(shell hostname).local | awk '{print; exit}')
 	export CFLAGS = -march=armv8-a -Wall -O3 -nostdlib -nostartfiles -ffreestanding -mtune=cortex-a53
 	export RUSTFLAGS = -C linker=${CC} -C target-cpu=cortex-a53 -C target-feature=+strict-align,+a53,+fp-armv8,+neon -C link-arg=-nostartfiles -C link-arg=-T./kernel8.ld
