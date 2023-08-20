@@ -9,7 +9,7 @@ use crate::mailbox::tags::{
     TagInterfaceRequest
 };
 
-struct FrameBuffer {
+pub struct FrameBuffer {
     buffer: BufferPtr,
     size: usize,
 }
@@ -51,8 +51,11 @@ pub unsafe fn init() -> Result<(), &'static str> {
         }
     }
 
+    ({let a: Option<u32> = None; a}).unwrap();
 
     FRAMEBUFFER.call_once(|| Mutex::new(FrameBuffer { buffer: BufferPtr(res.base_address as *mut u32 as *mut Pixel), size: res.size as usize }));
 
     Ok(())
 }
+
+// pub fn

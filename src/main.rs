@@ -21,6 +21,36 @@ macro_rules! println {
     }};
 }
 
+macro_rules! try_println {
+    () => {{
+        use core::fmt::Write;
+        crate::uart::try_get()
+            .ok_or(())
+            .map(|mut w| write!(w, "\n"))
+    }};
+    ($($arg:tt)*) => {{
+        use core::fmt::Write;
+        crate::uart::try_get()
+            .ok_or(())
+            .map(|mut w| {
+                write!(w, $($arg)*)
+                    .and(write!(w, "\n"))
+            })
+    }};
+}
+
+// Try to report an error in various ways
+macro_rules! eprintln {
+    () => {{
+        try_println!("\n")
+            .unwrap()
+    }};
+    ($($arg:tt)*) => {{
+        try_println!($($arg)*)
+            .unwrap()
+    }};
+}
+
 
 mod uart;
 mod time;
@@ -38,7 +68,7 @@ mod framebuffer;
 // #[cfg(not(test))] // new attribute
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    // println!("{}", info);
+    eprintln!("Panic Occured: {}", info);
     loop {}
 }
 
@@ -104,15 +134,25 @@ global_asm!(include_str!("boot.s"));
 //     kernel_start()
 // }
 
+enum Never {}
+
 #[no_mangle]
 pub extern "C" fn __start_kernel() -> ! {
+    if let Err(err) = main() {
+        eprintln!("Error occured somewhere. Main returned Err.");
+        eprintln!("{:?}", err);
+    }
+
+    loop {}
+}
+fn main() -> Result<Never, &'static str> {
     let mut periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
 
     unsafe {
         uart::init(periphs.UART1, &mut periphs.AUX);
         mailbox::init(periphs.VCMAILBOX);
+        framebuffer::init()?;
     }
-    framebuffer::frame();
 
     println!("Hello from println!!!!");
     println!("End of kernel addr = {}", unsafe {__end});
@@ -130,5 +170,4 @@ pub extern "C" fn __start_kernel() -> ! {
     // #[cfg(test)]
     // test_main();
 
-    loop {}
 }

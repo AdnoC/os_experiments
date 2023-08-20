@@ -38,6 +38,10 @@ impl fmt::Write for Controller {
 
 static UART: Once<Mutex<Controller>> = Once::new();
 
+pub fn try_get() -> Option<spin::MutexGuard<'static, Controller>> {
+    UART.get().unwrap().try_lock()
+}
+
 pub fn get() -> spin::MutexGuard<'static, Controller> {
     UART.get().unwrap().lock()
 }
