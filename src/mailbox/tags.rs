@@ -1,4 +1,3 @@
-use bcm2837_lpa::VCMAILBOX;
 use bitflags::bitflags;
 use bitfield_struct::bitfield;
 use paste::paste;
@@ -73,8 +72,8 @@ pub enum TagValue {
 
 pub trait TagInterface: fmt::Debug {
     const ID: TagValue;
-    type Req;
-    type Res;
+    type Req: fmt::Debug;
+    type Res: fmt::Debug;
 
     fn from_request(req: Self::Req) -> Self;
     fn request(&self) -> Option<Self::Req>;
@@ -86,8 +85,8 @@ pub trait TagInterfaceRequest {
     fn into_tag(self) -> Self::Tag;
 }
 
-pub trait TagBatch {
-    type Res;
+pub trait TagBatch: fmt::Debug {
+    type Res: fmt::Debug;
     fn responses(&self) -> Self::Res;
 }
 impl<T1: TagInterface> TagBatch for (T1,) {

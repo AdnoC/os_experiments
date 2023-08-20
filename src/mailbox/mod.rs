@@ -69,7 +69,7 @@ impl Mailbox {
         state.contains(Status::EMPTY)
     }
 
-    pub fn send_and_poll_recieve_one<T>(&mut self, req: T) -> <<T as TagInterfaceRequest>::Tag as TagInterface>::Res where
+    pub fn send_and_poll_recieve_one<T>(&mut self, req: T) -> Result<<<T as TagInterfaceRequest>::Tag as TagInterface>::Res, ()> where
 T: TagInterfaceRequest,
 {
         use core::cell::UnsafeCell;
@@ -99,10 +99,15 @@ T: TagInterfaceRequest,
         }
         let res_buf_ptr = res_ptr.prop_buf::<T::Tag>();
         let res_buf = unsafe { &*res_buf_ptr };
-        res_buf.tags.response().unwrap()
+        if res_buf.req_res_code.contains(BufferReqResCode::REQUEST_ERROR) {
+            return Err(());
+        }
+
+        res_buf.tags.response().ok_or(())
     }
 
-    pub fn send_and_poll_recieve_batch<T: TagBatch>(&mut self, batch: T) -> T::Res {
+// NOTE: Does not currently work. Must check on real hardware
+    pub fn send_and_poll_recieve_batch<T: TagBatch>(&mut self, batch: T) -> Result<T::Res, ()> {
         use core::cell::UnsafeCell;
 
         while self.send_is_full() {}
@@ -130,42 +135,36 @@ T: TagInterfaceRequest,
         }
         let res_buf_ptr = res_ptr.prop_buf::<T>();
         let res_buf = unsafe { &*res_buf_ptr };
-        res_buf.tags.responses()
+        println!("buf: {:#?}", res_buf);
+        if res_buf.req_res_code.contains(BufferReqResCode::REQUEST_ERROR) {
+            return Err(());
+        }
+        Ok(res_buf.tags.responses())
     }
 }
 
 
 pub unsafe fn init(mbox: VCMAILBOX) {
     let mut mbox = Mailbox { mbox };
-    // println!("Gettting firmware revision");
-    // let res = mbox.send_and_poll_recieve_one(BoardModelRequest {});
-    // println!("Res: {:?}", res);
-    // println!("firmware = {}", res.model);
-    //
-    // println!("Set phys size");
-    let res = mbox.send_and_poll_recieve_one(FBSetPhysicalSizeRequest { width: 640, height: 480 });
-    // println!("Res: {:?}", res);
-    //
-    // println!("Set virt size");
-    let res = mbox.send_and_poll_recieve_one(FBSetVirtualSizeRequest { width: 640, height: 480 });
-    // println!("Res: {:?}", res);
-    //
-    // println!("Set bits per pixel");
-    let res = mbox.send_and_poll_recieve_one(FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8});
-    // println!("Res: {:?}", res);
-    //
-    // println!("Alloc framebuffer");
-    let res = mbox.send_and_poll_recieve_one(FBAllocateBufferRequest { alignment: 16});
-    // println!("Res: {:?}", res);
+    println!("Gettting firmware revision");
+    let _ = mbox.send_and_poll_recieve_one(BoardModelRequest {}).unwrap();
+    let _ = mbox.send_and_poll_recieve_one(FBSetPhysicalSizeRequest { width: 640, height: 480 }).unwrap();
+    let _ = mbox.send_and_poll_recieve_one(FBSetVirtualSizeRequest { width: 640, height: 480 }).unwrap();
+    let _ = mbox.send_and_poll_recieve_one(FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}).unwrap();
+    let res = mbox.send_and_poll_recieve_one(FBAllocateBufferRequest { alignment: 16}).unwrap();
+    println!("Res: {:?}", res);
 
-    // let res = mbox.send_and_poll_recieve_batch(BoardModelRequest {});
-    // let res = mbox.send_and_poll_recieve_one::<FBSetPhysicalSizeTag>(FBSetPhysicalSizeRequest { width: 640, height: 480 });
-    // let res = mbox.send_and_poll_recieve_one::<FBSetVirtualSizeTag>(FBSetVirtualSizeRequest { width: 640, height: 480 });
-    // let res = mbox.send_and_poll_recieve_one::<FBSetBitsPerPixelTag>(FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8});
-    // let res = mbox.send_and_poll_recieve_one::<FBAllocateBufferTag>(FBAllocateBufferRequest { alignment: 16});
+    // let res = mbox.send_and_poll_recieve_batch((
+    //         FBSetPhysicalSizeRequest { width: 640, height: 480 }.into_tag(),
+    //         FBSetVirtualSizeRequest { width: 640, height: 480 }.into_tag(),
+    //         FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}.into_tag(),
+    //         )).unwrap();
 
 
 
+    println!("Responses: {:#?}", res);
+
+    let res = mbox.send_and_poll_recieve_one(FBAllocateBufferRequest { alignment: 16}).unwrap();
     let ptr = res.base_address as *mut u32 as *mut Pixel;
     println!("================ MODULO = {}", res.size % 3);
     let size = res.size / 3;
