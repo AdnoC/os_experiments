@@ -37,11 +37,11 @@ impl<Req, Res> fmt::Debug for Tag<Req, Res> where
             let mut f = f.debug_struct("Tag");
             f.field("id", &self.id)
                 .field("size", &self.size)
-                .field("req_res_code", &self.req_res_code);
+                .field("req_res_code", &(self.req_res_code as u32));
             if self.is_request() {
                 unsafe { f.field("req", &self.data.req); }
             } else if self.is_response() {
-                unsafe { f.field("req", &self.data.res); }
+                unsafe { f.field("res", &self.data.res); }
             } else {
                 f.field("union<req, res>", &INVALID_STR);
             }

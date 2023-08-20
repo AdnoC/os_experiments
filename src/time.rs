@@ -16,10 +16,11 @@ fn timer_count() -> u64 {
     count
 }
 
+// TODO: Verify # of cycles is correct
 pub fn wait_cycle(mut num: usize) {
     while num > 0 {
         num -= 1;
-        unsafe { asm!("noop") };
+        unsafe { asm!("nop") };
     }
 }
 pub fn wait_microsec(msec: usize) {

@@ -1,10 +1,12 @@
 use bcm2837_lpa::VCMAILBOX;
+use crate::time::wait_microsec;
 use bitflags::bitflags;
 use bitfield_struct::bitfield;
 use paste::paste;
 use core::fmt;
+use spin::{Mutex, Once};
 
-mod tags;
+pub mod tags;
 use tags::*;
 
 #[repr(u8)]
@@ -58,6 +60,7 @@ struct PropertyBuffer<T> {
     end_tag: u32,
 }
 
+type TagRes<T> = <<T as TagInterfaceRequest>::Tag as TagInterface>::Res;
 impl Mailbox {
     pub fn send_is_full(&mut self) -> bool {
         let state = Status::from_bits_retain(self.mbox.status1.read().bits());
@@ -69,9 +72,7 @@ impl Mailbox {
         state.contains(Status::EMPTY)
     }
 
-    pub fn send_and_poll_recieve_one<T>(&mut self, req: T) -> Result<<<T as TagInterfaceRequest>::Tag as TagInterface>::Res, ()> where
-T: TagInterfaceRequest,
-{
+    pub fn send_and_poll_recieve_one<T: TagInterfaceRequest>(&mut self, req: T) -> Result<Option<TagRes<T>>, ()>  {
         use core::cell::UnsafeCell;
 
         while self.send_is_full() {}
@@ -84,98 +85,76 @@ T: TagInterfaceRequest,
                 end_tag: 0,
             }
         );
-        let data = MessagePtr::new()
-            .with_channel(8)
-            .with_prop_buf(message.get()).into();
-        unsafe {
-            self.mbox.write.write_with_zero(|w| w.bits(data));
+        {
+            let data = MessagePtr::new()
+                .with_channel(8)
+                .with_prop_buf(message.get());
+            println!("data = {:?}", data);
+            unsafe {
+                self.mbox.write.write_with_zero(|w| w.bits(data.into()));
+            }
         }
 
         while self.read_is_empty() {}
         let mut res_ptr = MessagePtr::new();
+        println!("res = {:#?}", res_ptr);
         while res_ptr.channel() != 8 {
             let res = self.mbox.read.read().bits();
             res_ptr = MessagePtr::from(res);
+        println!("res = {:#?}", res_ptr);
         }
         let res_buf_ptr = res_ptr.prop_buf::<T::Tag>();
-        let res_buf = unsafe { &*res_buf_ptr };
-        if res_buf.req_res_code.contains(BufferReqResCode::REQUEST_ERROR) {
-            return Err(());
-        }
-
-        res_buf.tags.response().ok_or(())
-    }
-
-// NOTE: Does not currently work. Must check on real hardware
-    pub fn send_and_poll_recieve_batch<T: TagBatch>(&mut self, batch: T) -> Result<T::Res, ()> {
-        use core::cell::UnsafeCell;
-
-        while self.send_is_full() {}
-
-        let message = UnsafeCell::new(
-            PropertyBuffer {
-                size: core::mem::size_of::<PropertyBuffer<T>>() as u32,
-                req_res_code: BufferReqResCode::PROCESS_REQUEST,
-                tags: batch,
-                end_tag: 0,
-            }
-        );
-        let data = MessagePtr::new()
-            .with_channel(8)
-            .with_prop_buf(message.get()).into();
-        unsafe {
-            self.mbox.write.write_with_zero(|w| w.bits(data));
-        }
-
-        while self.read_is_empty() {}
-        let mut res_ptr = MessagePtr::new();
-        while res_ptr.channel() != 8 {
-            let res = self.mbox.read.read().bits();
-            res_ptr = MessagePtr::from(res);
-        }
-        let res_buf_ptr = res_ptr.prop_buf::<T>();
         let res_buf = unsafe { &*res_buf_ptr };
         println!("buf: {:#?}", res_buf);
         if res_buf.req_res_code.contains(BufferReqResCode::REQUEST_ERROR) {
             return Err(());
         }
-        Ok(res_buf.tags.responses())
+
+        Ok(res_buf.tags.response())
     }
+
+// NOTE: Does not currently work. Must check on real hardware
+    // pub fn send_and_poll_recieve_batch<T: TagBatch>(&mut self, batch: T) -> Result<T::Res, ()> {
+    //     use core::cell::UnsafeCell;
+    //
+    //     while self.send_is_full() {}
+    //
+    //     let message = UnsafeCell::new(
+    //         PropertyBuffer {
+    //             size: core::mem::size_of::<PropertyBuffer<T>>() as u32,
+    //             req_res_code: BufferReqResCode::PROCESS_REQUEST,
+    //             tags: batch,
+    //             end_tag: 0,
+    //         }
+    //     );
+    //     let data = MessagePtr::new()
+    //         .with_channel(8)
+    //         .with_prop_buf(message.get()).into();
+    //     unsafe {
+    //         self.mbox.write.write_with_zero(|w| w.bits(data));
+    //     }
+    //
+    //     while self.read_is_empty() {}
+    //     let mut res_ptr = MessagePtr::new();
+    //     while res_ptr.channel() != 8 {
+    //         let res = self.mbox.read.read().bits();
+    //         res_ptr = MessagePtr::from(res);
+    //     }
+    //     let res_buf_ptr = res_ptr.prop_buf::<T>();
+    //     let res_buf = unsafe { &*res_buf_ptr };
+    //     if res_buf.req_res_code.contains(BufferReqResCode::REQUEST_ERROR) {
+    //         return Err(());
+    //     }
+    //     Ok(res_buf.tags.responses())
+    // }
 }
 
+static MAILBOX: Once<Mutex<Mailbox>> = Once::new();
+
+pub fn get() -> spin::MutexGuard<'static, Mailbox> {
+    MAILBOX.get().unwrap().lock()
+}
 
 pub unsafe fn init(mbox: VCMAILBOX) {
-    let mut mbox = Mailbox { mbox };
-    println!("Gettting firmware revision");
-    let _ = mbox.send_and_poll_recieve_one(BoardModelRequest {}).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetPhysicalSizeRequest { width: 640, height: 480 }).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetVirtualSizeRequest { width: 640, height: 480 }).unwrap();
-    let _ = mbox.send_and_poll_recieve_one(FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}).unwrap();
-    let res = mbox.send_and_poll_recieve_one(FBAllocateBufferRequest { alignment: 16}).unwrap();
-    println!("Res: {:?}", res);
-
-    // let res = mbox.send_and_poll_recieve_batch((
-    //         FBSetPhysicalSizeRequest { width: 640, height: 480 }.into_tag(),
-    //         FBSetVirtualSizeRequest { width: 640, height: 480 }.into_tag(),
-    //         FBSetBitsPerPixelRequest { bpp: core::mem::size_of::<Pixel>() as u32 * 8}.into_tag(),
-    //         )).unwrap();
-
-
-
-    println!("Responses: {:#?}", res);
-
-    let res = mbox.send_and_poll_recieve_one(FBAllocateBufferRequest { alignment: 16}).unwrap();
-    let ptr = res.base_address as *mut u32 as *mut Pixel;
-    println!("================ MODULO = {}", res.size % 3);
-    let size = res.size / 3;
-    for i in 0..size {
-        unsafe {
-
-            (*ptr.add(i as usize)).0[0] = u8::MAX;
-        }
-    }
+    MAILBOX.call_once(|| Mutex::new(Mailbox { mbox }));
 }
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-struct Pixel([u8; 3]);

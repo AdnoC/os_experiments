@@ -1,5 +1,16 @@
 .section ".text.boot"
 _start:
+  // Check if we are in core 0. If not, loop forever
+  mrs x1, mpidr_el1
+  and x1, x1, #3
+  cbz x1, 3f
+2:
+  wfe
+  b 2b
+
+3:
+
+
   mrs x5, CurrentEl // Move the CurrentEL system register into x5.
   ubfx x5, x5, #2, #2 // Extract the relevant bitfield (bits 3:2).
 
