@@ -24,7 +24,7 @@ macro_rules! println {
 
 mod uart;
 mod time;
-mod vc_mailbox;
+mod mailbox;
 
 // mod serial;
 // mod test_runner;
@@ -109,7 +109,7 @@ pub extern "C" fn __start_kernel() -> ! {
 
     unsafe {
         uart::init(periphs.UART1, &mut periphs.AUX);
-        vc_mailbox::init(periphs.VCMAILBOX);
+        mailbox::init(periphs.VCMAILBOX);
     }
 
     println!("Hello from println!!!!");
