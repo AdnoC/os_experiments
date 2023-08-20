@@ -24,11 +24,12 @@ const MONO_TEXT_WIDTH: usize = 6;
 const MONO_TEXT_HEIGHT: usize = 10;
 const TEXT_BUFFER_LEN: usize = (PREFERRED_WIDTH / MONO_TEXT_WIDTH) * (PREFERRED_HEIGHT / MONO_TEXT_HEIGHT);
 
-pub struct FrameBuffer {
+pub struct FrameBuffer(DisplayMode,);
+
+pub struct BufferData {
     buffer: BufferPtr,
     buff_size: usize,
     dims: Size,
-    display_mode: DisplayMode,
 }
 struct BufferPtr(*mut FBPixel);
 unsafe impl Send for BufferPtr {}
@@ -39,7 +40,22 @@ enum DisplayMode {
     TextLog(TextLogData),
 }
 
+impl FrameBuffer {
+    pub fn buff_data(&self) -> &BufferData {
+        match &self.0 {
+            DisplayMode::TextLog(TextLogData { ref data, .. }) => data
+        }
+    }
+
+    pub fn buff_data_mut(&mut self) -> &mut BufferData {
+        match &mut self.0 {
+            DisplayMode::TextLog(TextLogData { ref mut data, .. }) => data
+        }
+    }
+}
+
 pub struct TextLogData {
+    data: BufferData,
     text: [AsciiChar; TEXT_BUFFER_LEN],
     cursor: (usize, usize)
 }
@@ -52,7 +68,7 @@ impl FrameBuffer {
 
 impl fmt::Write for FrameBuffer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        if ! matches!(self.display_mode, DisplayMode::TextLog(_)) {
+        if ! matches!(self.0, DisplayMode::TextLog(_)) {
             return Err(fmt::Error);
         }
         for c in s.chars() {
@@ -62,7 +78,7 @@ impl fmt::Write for FrameBuffer {
     }
 
     fn write_char(&mut self, c: char) -> fmt::Result {
-        if ! matches!(self.display_mode, DisplayMode::TextLog(_)) {
+        if ! matches!(self.0, DisplayMode::TextLog(_)) {
             return Err(fmt::Error);
         }
 
@@ -85,7 +101,7 @@ impl core::convert::From<char> for AsciiChar {
     }
 }
 
-impl core::ops::Index<(u32, u32)> for FrameBuffer {
+impl core::ops::Index<(u32, u32)> for BufferData {
     type Output = FBPixel;
 
     // Safety: Checks that coordinates are inside the buffer
@@ -100,7 +116,7 @@ impl core::ops::Index<(u32, u32)> for FrameBuffer {
         }
     }
 }
-impl core::ops::IndexMut<(u32, u32)> for FrameBuffer {
+impl core::ops::IndexMut<(u32, u32)> for BufferData {
     // Safety: Checks that coordinates are inside the buffer
     fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut Self::Output {
         if (0..self.dims.width).contains(&x) && (0..self.dims.height).contains(&y) {
@@ -115,13 +131,13 @@ impl core::ops::IndexMut<(u32, u32)> for FrameBuffer {
 }
 
 
-impl OriginDimensions for FrameBuffer {
+impl OriginDimensions for BufferData {
     fn size(&self) -> Size {
         self.dims
     }
 }
 
-impl DrawTarget for FrameBuffer {
+impl DrawTarget for BufferData {
     type Color = Rgb888;
     // Since we just write to the framebuffer we have no failure points
     type Error = core::convert::Infallible;
@@ -181,15 +197,20 @@ pub unsafe fn init() -> Result<(), &'static str> {
     }
 
 
-    FRAMEBUFFER.call_once(|| Mutex::new(FrameBuffer {
-        buffer: BufferPtr(res.base_address as *mut u32 as *mut FBPixel),
-        buff_size: res.size as usize,
-        dims: Size { width, height },
-        display_mode: DisplayMode::TextLog(TextLogData {
-            text: [AsciiChar(None); TEXT_BUFFER_LEN],
-            cursor: (0, 0),
-        }),
-    }));
+    let fb = FrameBuffer(
+        DisplayMode::TextLog(
+            TextLogData {
+                data: BufferData {
+                    buffer: BufferPtr(res.base_address as *mut u32 as *mut FBPixel),
+                    buff_size: res.size as usize,
+                    dims: Size { width, height },
+                },
+                text: [AsciiChar(None); TEXT_BUFFER_LEN],
+                cursor: (0, 0),
+            }
+        ),
+    );
+    FRAMEBUFFER.call_once(|| Mutex::new(fb));
 
     Ok(())
 }
@@ -201,6 +222,6 @@ pub fn draw_text(text: &str) {
     };
 
     let style = MonoTextStyle::new(&FONT_6X10, Rgb888::WHITE);
-    Text::new(text, Point::new(20, 30), style).draw(&mut *get()).unwrap();
+    Text::new(text, Point::new(20, 30), style).draw(get().buff_data_mut()).unwrap();
 }
 
