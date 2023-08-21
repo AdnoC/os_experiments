@@ -110,11 +110,9 @@ pub extern "C" fn __start_kernel() -> ! {
     loop {}
 }
 fn main() -> Result<Infallible, &'static str> {
-    let mut periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
-
     unsafe {
         uart::init();
-        mailbox::init(periphs.VCMAILBOX);
+        mailbox::init();
         framebuffer::init()?;
     }
 
@@ -142,6 +140,13 @@ fn main() -> Result<Infallible, &'static str> {
 /// Example: bus address 0x7e00beef corresponds to physical address 0x3f00beef.
 pub const fn bus_to_phys(addr: usize) -> usize {
     addr - 0x3f000000
+}
+
+// Get the full address for a mmio peripheral
+// https://jsandler18.github.io/extra/peripheral.html
+// NOTE: This is a different address for the Pi 1
+pub const fn phys_to_bus(base: usize) -> usize {
+    base + 0x3f000000
 }
 
 #[derive(Debug)]

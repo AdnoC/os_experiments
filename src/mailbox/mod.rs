@@ -1,7 +1,12 @@
-use bcm2837_lpa::VCMAILBOX;
+use crate::{MMIODerefWrapper, phys_to_bus};
 use bitfield_struct::bitfield;
 use bitflags::bitflags;
 use core::arch::asm;
+use tock_registers::{
+    interfaces::{ReadWriteable, Readable, Writeable},
+    register_bitfields, register_structs,
+    registers::{ReadOnly, ReadWrite, WriteOnly},
+};
 
 
 use spin::{Mutex, Once};
@@ -30,8 +35,9 @@ bitflags! {
     }
 }
 
+type MBox = MMIODerefWrapper<Registers>;
 pub struct Mailbox {
-    mbox: VCMAILBOX,
+    mbox: MBox,
 }
 
 #[bitfield(u32)]
@@ -62,12 +68,12 @@ struct PropertyBuffer<T> {
 
 impl Mailbox {
     pub fn send_is_full(&mut self) -> bool {
-        let state = Status::from_bits_retain(self.mbox.status1.read().bits());
+        let state = Status::from_bits_retain(self.mbox.write_status.get());
         state.contains(Status::FULL)
     }
 
     pub fn read_is_empty(&mut self) -> bool {
-        let state = Status::from_bits_retain(self.mbox.status0.read().bits());
+        let state = Status::from_bits_retain(self.mbox.read_status.get());
         state.contains(Status::EMPTY)
     }
 
@@ -93,16 +99,15 @@ impl Mailbox {
         let m = message.get();
         core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::Release);
         let data = MessagePtr::new().with_channel(8).with_prop_buf(m).into();
-        {}
         unsafe {
-            self.mbox.write.write_with_zero(|w| w.bits(data));
+            self.mbox.write.set(data);
         }
 
         while self.read_is_empty() {}
         let mut res_ptr = MessagePtr::new();
         while res_ptr.channel() != 8 {
             unsafe { asm!("nop") };
-            let res = self.mbox.read.read().bits();
+            let res = self.mbox.read.get();
             res_ptr = MessagePtr::from(res);
         }
         let res_buf_ptr = res_ptr.prop_buf::<T::Tag>();
@@ -134,13 +139,13 @@ impl Mailbox {
             .with_prop_buf(message.get())
             .into();
         unsafe {
-            self.mbox.write.write_with_zero(|w| w.bits(data));
+            self.mbox.write.set(data);
         }
 
         while self.read_is_empty() {}
         let mut res_ptr = MessagePtr::new();
         while res_ptr.channel() != 8 {
-            let res = self.mbox.read.read().bits();
+            let res = self.mbox.read.get();
             res_ptr = MessagePtr::from(res);
         }
         let res_buf_ptr = res_ptr.prop_buf::<T>();
@@ -157,10 +162,30 @@ impl Mailbox {
 
 static MAILBOX: Once<Mutex<Mailbox>> = Once::new();
 
+// https://github.com/raspberrypi/firmware/wiki/Mailboxes
+register_structs! {
+    Registers {
+        (0x00 => read: ReadOnly<u32>),
+        (0x04 => _padding1),
+        (0x10 => _reserved_peek_reader),
+        (0x14 => _reserved_sender_reader),
+        (0x18 => read_status: ReadOnly<u32>),
+        (0x1C => _reserved_read_config),
+        (0x20 => write: WriteOnly<u32>),
+        (0x24 => _padding2),
+        (0x30 => _reserved_peek_sender),
+        (0x34 => _reserved_sender_sender),
+        (0x38 => write_status: ReadOnly<u32>),
+        (0x3C => _reserved_write_config),
+        (0x40 => @END),
+    }
+}
+
 pub fn get() -> spin::MutexGuard<'static, Mailbox> {
     MAILBOX.get().unwrap().lock()
 }
 
-pub unsafe fn init(mbox: VCMAILBOX) {
+pub unsafe fn init() {
+    let mbox = MBox::new(phys_to_bus(0xB880));
     MAILBOX.call_once(|| Mutex::new(Mailbox { mbox }));
 }
