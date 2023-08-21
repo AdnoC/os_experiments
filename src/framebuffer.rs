@@ -75,34 +75,35 @@ struct TextPos(u32, u32);
 
 impl TextLogData {
     fn dbg_print_text(&self) {
-        for y in 0..(self.chars_height()) {
-            print!("{}  ", y);
-            for x in 0..(self.chars_width()) {
-                let text_pos = self.pos_to_idx(TextPos(x, y));
-
-                let c = self.text[text_pos];
-                if c == '\n'.into() {
-                    break;
-                }
-                let c = c.0.map(|c| if ascii::AsciiChar::from_ascii(c.get()).is_ok_and(|asci| asci.is_ascii_printable()) {
-                    c.get()
-                } else {
-                    "%"
-                });
-
-                match c.map(|c| c.get()) {
-                    Some(c) => {
-                        print!("{}", c as char);
-                        // let str_buf = [c];
-                        // let s = core::str::from_utf8(&str_buf).expect("Tried to convert an invalid char to utf8");
-                        // print!("{}", s);
-                    },
-                    None => print!("~"),
-                }
-            }
-            println!();
-        }
-        crate::uart::spin_until_enter();
+        // for y in 0..(self.chars_height()) {
+        //     print!("{}  ", y);
+        //     for x in 0..(self.chars_width()) {
+        //         let text_pos = self.pos_to_idx(TextPos(x, y));
+        //
+        //         let c = self.text[text_pos];
+        //         if c == '\n'.into() {
+        //             print!("<NEWLINE>");
+        //             break;
+        //         }
+        //         let c = c.0.map(|c| if ascii::AsciiChar::from_ascii(c.get()).is_ok_and(|asci| asci.is_ascii_printable()) {
+        //             c.get()
+        //         } else {
+        //             '%' as u8
+        //         });
+        //
+        //         match c {
+        //             Some(c) => {
+        //                 print!("{}", c as char);
+        //                 // let str_buf = [c];
+        //                 // let s = core::str::from_utf8(&str_buf).expect("Tried to convert an invalid char to utf8");
+        //                 // print!("{}", s);
+        //             },
+        //             None => print!("~"),
+        //         }
+        //     }
+        //     println!();
+        // }
+        // crate::uart::spin_until_enter();
     }
     /// Check whether the cursor needs to be moved to a new line
     fn text_shift_required(&self) -> bool {
@@ -114,31 +115,36 @@ impl TextLogData {
     /// Does this by shifting all text up
     /// Redraws the whole screen to handle this
     fn shift_text(&mut self) {
-        println!("SHIFTING: Before");
+        let chars_width = self.chars_width() as usize;
+        // println!("SHIFTING: Before");
         self.dbg_print_text();
         self.cursor.0 = 0;
-        self.text[0..(self.data.dims.width as usize)].fill(AsciiChar(None));
-        println!("Filled initial");
+        self.text[0..(chars_width)].fill(AsciiChar(None));
+        // println!("Filled initial");
         self.dbg_print_text();
         // TODO: Check that this is correct
-        self.text.rotate_left(self.data.dims.width as usize);
-        println!("Rotated");
+        self.text.rotate_left(chars_width);
+        // println!("Rotated");
         self.dbg_print_text();
         self.redraw_text();
     }
 
     /// Redraws entire screen
     fn redraw_text(&mut self) {
-        'line: for y in 0..(self.chars_height()) {
+        for y in 0..(self.chars_height()) {
+            let mut erase_rest = false;
             for x in 0..(self.chars_width()) {
                 let text_pos = self.pos_to_idx(TextPos(x, y));
                 let screen_pos = Self::text_pos_to_screen_pos(TextPos(x, y));
 
-                let c = self.text[text_pos];
+                let mut c = self.text[text_pos];
                 if c == '\n'.into() {
-                    self.advance_cursor_newline();
-                    continue 'line;
+                    erase_rest = true;
                 }
+                if erase_rest {
+                    c = AsciiChar(None);
+                }
+
                 self.paint_char(c, screen_pos);
             }
         }
@@ -189,21 +195,23 @@ impl TextLogData {
     }
 
     fn write_char(&mut self, c: AsciiChar) {
-        match c.0.map(|c| c.get()) {
-            Some(c) => println!("Writing {} ({:?}) to framebuffer", c as char, c),
-            None => println!("Writing <NONE> to framebuffer"),
-        }
+        // match c.0.map(|c| c.get()) {
+        //     Some(c) => println!("Writing {} ({:?}) to framebuffer @{:?}", c as char, c, self.cursor),
+        //     None => println!("Writing <NONE> to framebuffer"),
+        // }
         // crate::time::wait_microsec(5_000);
-        if c == '\n'.into() {
-            self.advance_cursor_newline();
-        }
 
         if self.text_shift_required() {
             self.shift_text();
         }
         self.write_char_to_pos(c, self.cursor);
 
-        self.advance_cursor();
+
+        if c == '\n'.into() {
+            self.advance_cursor_newline();
+        } else {
+            self.advance_cursor();
+        }
     }
 
     fn paint_char(&mut self, c: AsciiChar, screen_pos: ScreenPos) {
@@ -216,27 +224,24 @@ impl TextLogData {
             text::{Baseline, Text},
         };
 
+        let fill = PrimitiveStyle::with_fill(Rgb888::BLACK);
+        // println!("Filling {:?} with BG", screen_pos);
+
+        Rectangle::new(Point::new(screen_pos.0 as i32, screen_pos.1 as i32), Size::new(MONO_TEXT_WIDTH, MONO_TEXT_HEIGHT))
+            .into_styled(fill)
+            .draw(&mut self.data)
+            .unwrap();
+
         let c = c.0.filter(|c| ascii::AsciiChar::from_ascii(c.get()).is_ok_and(|asci| asci.is_ascii_printable()));
-        match c.map(|c| c.get()) {
-            Some(c) => {
-                let style = MonoTextStyle::new(&FONT_6X10, Rgb888::WHITE);
+        if let Some(c) = c.map(|c| c.get()) {
+            let style = MonoTextStyle::new(&FONT_6X10, Rgb888::WHITE);
 
-                let str_buf = [c];
-                let s = core::str::from_utf8(&str_buf).expect("Tried to convert an invalid char to utf8");
-                println!("Paintin {} to {:?}", s, screen_pos);
-                Text::with_baseline(s, Point::new(screen_pos.0 as i32, screen_pos.1 as i32), style, Baseline::Top)
-                    .draw(&mut self.data)
-                    .unwrap();
-            },
-            None => {
-                let fill = PrimitiveStyle::with_fill(Rgb888::BLACK);
-                println!("Filling {:?} with BG", screen_pos);
-
-                Rectangle::new(Point::new(screen_pos.0 as i32, screen_pos.1 as i32), Size::new(MONO_TEXT_WIDTH, MONO_TEXT_HEIGHT))
-                    .into_styled(fill)
-                    .draw(&mut self.data)
-                    .unwrap();
-            },
+            let str_buf = [c];
+            let s = core::str::from_utf8(&str_buf).expect("Tried to convert an invalid char to utf8");
+            // println!("Paintin {} to {:?}", s, screen_pos);
+            Text::with_baseline(s, Point::new(screen_pos.0 as i32, screen_pos.1 as i32), style, Baseline::Top)
+                .draw(&mut self.data)
+                .unwrap();
         };
     }
 
@@ -473,8 +478,12 @@ fn main() {
     / Out of bound indexing on slice causes runtime error.
     /println!("{}", xs[..][5]);*
     "#;
-    use core::fmt::Write;
-    write!(get(), "{}", text).unwrap();
+    unsafe {
+        let p = 0x500_000 as *mut usize;
+        println!("p = {:?}", *p);
+    }
+    // use core::fmt::Write;
+    // write!(get(), "{}", text).unwrap();
     // use embedded_graphics::{
     //     mono_font::{ascii::FONT_6X10, MonoTextStyle},
     //     text::Text,
