@@ -82,3 +82,13 @@ pub unsafe fn init(uart: UART1, aux: &mut AUX) {
     // }
     UART.call_once(|| Mutex::new(Controller { uart }));
 }
+
+pub fn spin_until_enter() {
+    let mut uart = get();
+    loop {
+        let c = uart.read_char();
+        if c as usize == 13 {
+            return;
+        }
+    }
+}

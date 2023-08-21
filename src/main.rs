@@ -9,6 +9,13 @@ use core::arch::{global_asm};
 use core::convert::Infallible;
 use core::panic::PanicInfo;
 
+
+macro_rules! print {
+    ($($arg:tt)*) => {{
+        use core::fmt::Write;
+        write!(crate::uart::get(), $($arg)*).unwrap();
+    }};
+}
 macro_rules! println {
     () => {{
         use core::fmt::Write;
