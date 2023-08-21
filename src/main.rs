@@ -5,9 +5,11 @@
 // #![test_runner(crate::test_runner::test_runner)]
 // #![reexport_test_harness_main = "test_main"]
 
-use core::arch::{global_asm};
+use core::arch::{asm, global_asm};
 use core::convert::Infallible;
 use core::panic::PanicInfo;
+use tock_registers::interfaces::Writeable;
+use aarch64_cpu::{asm, registers::*};
 
 
 macro_rules! print {
@@ -63,12 +65,6 @@ mod mailbox;
 mod time;
 mod uart;
 
-// mod serial;
-// mod test_runner;
-//
-// mod vga_text;
-// mod gdt;
-// mod interrupts;
 
 // our existing panic handler
 // #[cfg(not(test))] // new attribute
@@ -78,16 +74,6 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
-// our panic handler in test mode
-// #[cfg(test)]
-// #[panic_handler]
-// fn panic(info: &PanicInfo) -> ! {
-//     use test_runner::*;
-//     serial_println!("[failed]\n");
-//     serial_println!("Error: {}\n", info);
-//     exit_qemu(QemuExitCode::Failed);
-//     loop {}
-// }
 
 #[no_mangle]
 pub static HELLO: &[u8] = b"Hello World!";
@@ -96,49 +82,23 @@ static mut XYZ: [u8; 0xabc123] = [0; 0xabc123];
 extern "C" {
     static __end: usize;
 }
-fn init() {
-    // gdt::init();
-    // interrupts::init_idt();
-    // x86_64::instructions::interrupts::without_interrupts(|| {
-    //     unsafe { interrupts::PICS.lock().initialize() };
-    // });
-    // x86_64::instructions::interrupts::enable();
-}
+
+
 
 global_asm!(include_str!("boot.s"));
 
-// #[no_mangle]
-// #[link_section = ".text.boot"]
-// pub extern "C" fn _start() -> ! {
-//     unsafe {
-//         asm!("mrs x5, CurrentEl", // Move the CurrentEL system register into x5.
-//              "ubfx x5, x5, #2, #2"); // Extract the relevant bitfield (bits 3:2).
-//
-//         asm!(
-//             // Set the SPSel register so that SP_EL0 is the stack pointer at all EL.
-//             "mrs x6, SPSel",        // Move the current SPSel  system register into x6.
-//             "and x6, x6, ~1",       // Clear the 0 bit of x6.
-//             "msr SPSel, x6",        // Set the value of SPSel to x6.
-//
-//             // Set up the stack below our code (it grows downwards).
-//             // This should be plenty big enough: only the first 4KB of memory are used.
-//             "ldr x6, =_start",
-//             "mov sp, x6"
-//             );
-//         asm!(
-//             "ldr x6, =__bss_start",
-//             "ldr x7, =__bss_end",
-//             "21:",
-//             "cmp x6, x7",
-//             "b.ge 21f",
-//             "str xzr, [x6]",
-//             "add x6, x6, #8",
-//             "b 21b",
-//             "21:"
-//             );
-//     }
-//     kernel_start()
-// }
+
+/// Transition from hypervisor to OS
+fn transition_el2_to_el1() {
+    // Enable timer counter registers for EL1
+    CNTHCTL_EL2.write(todo!());
+
+    // https://developer.arm.com/documentation/ddi0601/2023-06/AArch64-Registers/CNTVOFF-EL2--Counter-timer-Virtual-Offset-Register?lang=en
+    // No offset for EL1 timers
+    unsafe {
+        asm!("msr cntfrq_el0, {}", in(reg) 0);
+    }
+}
 
 #[no_mangle]
 pub extern "C" fn __start_kernel() -> ! {
@@ -153,7 +113,7 @@ fn main() -> Result<Infallible, &'static str> {
     let mut periphs = unsafe { bcm2837_lpa::Peripherals::steal() };
 
     unsafe {
-        uart::init(periphs.UART1, &mut periphs.AUX);
+        uart::init();
         mailbox::init(periphs.VCMAILBOX);
         framebuffer::init()?;
     }
@@ -161,17 +121,49 @@ fn main() -> Result<Infallible, &'static str> {
     println!("Hello from println!!!!");
     println!("End of kernel addr = {}", unsafe { __end });
 
-    framebuffer::draw_text("HELLOOOOOOO");
+
+
+    // framebuffer::draw_text("HELLOOOOOOO");
 
     loop {
         time::wait_microsec(1_000_000);
         println!("Its been a second");
     }
+}
 
-    // init();
-    //
-    // println!("Hello world!!!!");
+/// Convert a bus address into a physical address.
+///
+///
+/// The documentation for the BCM2837 gives peripheral bus addresses, which are
+/// not directly mapped to physical addresses. Physical addresses 0x3f000000 to
+/// 0x3fffffff, used for peripheral MMIO, are mapped starting at the peripheral
+/// bus addresses range starting at 0x7e000000 (and ending at 0x7effffff).
+///
+/// Example: bus address 0x7e00beef corresponds to physical address 0x3f00beef.
+pub const fn bus_to_phys(addr: usize) -> usize {
+    addr - 0x3f000000
+}
 
-    // #[cfg(test)]
-    // test_main();
+#[derive(Debug)]
+pub struct MMIODerefWrapper<T> {
+    addr: usize,
+    _phantom: core::marker::PhantomData<T>,
+}
+
+impl<T> MMIODerefWrapper<T> {
+    pub const unsafe fn new(addr: usize) -> Self {
+        MMIODerefWrapper {
+            addr,
+            _phantom: core::marker::PhantomData,
+        }
+    }
+}
+impl<T> core::ops::Deref for MMIODerefWrapper<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe {
+            &*(self.addr as *const _)
+        }
+    }
 }

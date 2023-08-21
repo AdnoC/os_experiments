@@ -12,6 +12,7 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
+aarch64-cpu = "9.3.1"
 arrayvec = { version = "0.7.4", default-features = false }
 ascii = { version = "1.1.0", default-features = false }
 bcm2837-lpa = "0.1.0"
@@ -26,6 +27,7 @@ num_enum = { version = "0.7.0", default-features = false }
 paste = "1.0.14"
 spin = "0.9.8"
 static_assertions = "1.1.0"
+tock-registers = "0.8.1"
 uart_16550 = "0.3.0"
 volatile = "0.5.1"
 

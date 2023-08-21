@@ -74,37 +74,6 @@ pub struct TextLogData {
 struct TextPos(u32, u32);
 
 impl TextLogData {
-    fn dbg_print_text(&self) {
-        // for y in 0..(self.chars_height()) {
-        //     print!("{}  ", y);
-        //     for x in 0..(self.chars_width()) {
-        //         let text_pos = self.pos_to_idx(TextPos(x, y));
-        //
-        //         let c = self.text[text_pos];
-        //         if c == '\n'.into() {
-        //             print!("<NEWLINE>");
-        //             break;
-        //         }
-        //         let c = c.0.map(|c| if ascii::AsciiChar::from_ascii(c.get()).is_ok_and(|asci| asci.is_ascii_printable()) {
-        //             c.get()
-        //         } else {
-        //             '%' as u8
-        //         });
-        //
-        //         match c {
-        //             Some(c) => {
-        //                 print!("{}", c as char);
-        //                 // let str_buf = [c];
-        //                 // let s = core::str::from_utf8(&str_buf).expect("Tried to convert an invalid char to utf8");
-        //                 // print!("{}", s);
-        //             },
-        //             None => print!("~"),
-        //         }
-        //     }
-        //     println!();
-        // }
-        // crate::uart::spin_until_enter();
-    }
     /// Check whether the cursor needs to be moved to a new line
     fn text_shift_required(&self) -> bool {
         self.cursor.0 == self.chars_width() &&
@@ -116,16 +85,10 @@ impl TextLogData {
     /// Redraws the whole screen to handle this
     fn shift_text(&mut self) {
         let chars_width = self.chars_width() as usize;
-        // println!("SHIFTING: Before");
-        self.dbg_print_text();
         self.cursor.0 = 0;
         self.text[0..(chars_width)].fill(AsciiChar(None));
-        // println!("Filled initial");
-        self.dbg_print_text();
         // TODO: Check that this is correct
         self.text.rotate_left(chars_width);
-        // println!("Rotated");
-        self.dbg_print_text();
         self.redraw_text();
     }
 
@@ -356,9 +319,14 @@ static FRAMEBUFFER: Once<Mutex<FrameBuffer>> = Once::new();
 #[derive(Clone, Copy, Debug)]
 pub struct FBPixel([u8; 3]);
 
+pub fn try_get() -> Option<spin::MutexGuard<'static, FrameBuffer>> {
+    FRAMEBUFFER.get().and_then(|m| m.try_lock())
+}
+
 pub fn get() -> spin::MutexGuard<'static, FrameBuffer> {
     FRAMEBUFFER.get().unwrap().lock()
 }
+
 
 pub unsafe fn init() -> Result<(), &'static str> {
     let mut mbox = mailbox::get();
@@ -389,17 +357,15 @@ pub unsafe fn init() -> Result<(), &'static str> {
     let height = virt_res.height;
     let width = virt_res.width;
 
-    println!("Responses: {:#?}", res);
     let res = res
         .3
         .ok_or("FameBuffer buff allor request did not get a response")?;
 
     let ptr = res.base_address as *mut u32 as *mut FBPixel;
-    println!("================ MODULO = {}", res.size % 3);
     let size = res.size / 3;
     for i in 0..size {
         unsafe {
-            // (*ptr.add(i as usize)).0[0] = u8::MAX;
+            (*ptr.add(i as usize)).0[0] = u8::MAX;
         }
     }
 

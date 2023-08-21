@@ -84,10 +84,6 @@ impl Mailbox {
             unsafe { asm!("nop") };
         }
 
-        println!(
-            "size = {}",
-            core::mem::size_of::<PropertyBuffer<T::Tag>>() as u32
-        );
         let message = UnsafeCell::new(PropertyBuffer {
             size: core::mem::size_of::<PropertyBuffer<T::Tag>>() as u32,
             req_res_code: BufferReqResCode::PROCESS_REQUEST,
@@ -96,7 +92,6 @@ impl Mailbox {
         });
         let m = message.get();
         core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::Release);
-        // println!("m = {:?}", m); // WHY does this break framebuffer???
         let data = MessagePtr::new().with_channel(8).with_prop_buf(m).into();
         {}
         unsafe {
@@ -119,7 +114,6 @@ impl Mailbox {
             return Err(());
         }
 
-        println!("rerq = {}", res_buf.req_res_code.bits());
         res_buf.tags.response().ok_or(())
     }
 
@@ -151,7 +145,6 @@ impl Mailbox {
         }
         let res_buf_ptr = res_ptr.prop_buf::<T>();
         let res_buf = unsafe { &*res_buf_ptr };
-        println!("buf: {:#?}", res_buf);
         if res_buf
             .req_res_code
             .contains(BufferReqResCode::REQUEST_ERROR)
