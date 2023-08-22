@@ -2,7 +2,7 @@ use crate::{MMIODerefWrapper, bus_to_phys};
 use tock_registers::{
     interfaces::{ReadWriteable, Readable, Writeable},
     register_bitfields, register_structs,
-    registers::{ReadOnly, ReadWrite, WriteOnly},
+    registers::ReadWrite,
 };
 
 type Uart = MMIODerefWrapper<Registers>;
@@ -160,18 +160,6 @@ pub unsafe fn init() {
     // Enable use of UART
     aux.enable.modify(aux::ENABLES::MINI_UART_ENABLE::SET);
 
-
-    // {
-    //     use fmt::Write;
-    //     let mut c = Controller { uart };
-    //     let _ = c.write_str("Hello World!");
-    //
-    //     let mut s = ArrayString::<10>::new();
-    //     for _ in 0..s.capacity() {
-    //         s.push(c.read_char());
-    //     }
-    //     let _ = c.write_str(&s);
-    // }
     UART.call_once(|| Mutex::new(Controller { uart }));
 }
 

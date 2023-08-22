@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+#![allow(dead_code)]
+
 // #![feature(custom_test_frameworks)]
 // #![test_runner(crate::test_runner::test_runner)]
 // #![reexport_test_harness_main = "test_main"]
@@ -9,9 +11,10 @@ use core::arch::{asm, global_asm};
 use core::convert::Infallible;
 use core::panic::PanicInfo;
 use tock_registers::interfaces::Writeable;
-use aarch64_cpu::{asm, registers::*};
+use aarch64_cpu::registers::*;
 
 
+#[allow(unused_macros)]
 macro_rules! print {
     ($($arg:tt)*) => {{
         use core::fmt::Write;
@@ -56,6 +59,7 @@ macro_rules! eprintln {
     }};
     ($($arg:tt)*) => {{
         try_println!($($arg)*)
+            .unwrap()
             .unwrap()
     }};
 }

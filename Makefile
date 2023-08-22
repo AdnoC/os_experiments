@@ -56,7 +56,7 @@ clean:
 
 .PHONY: lint-fix
 lint-fix:
-	cargo fix ${RELEASE_FLAG} --allow-dirty
+	cargo fix --target aarch64-unknown-linux-gnu ${RELEASE_FLAG} --allow-dirty
 
 
 .PHONY: qemu
@@ -78,4 +78,4 @@ target/kernel.img: ${ELF_PATH}
 
 RUST_SRC = $(wildcard src/*.rs) $(wildcard src/**/*.rs) build.rs src/boot.s
 ${ELF_PATH}: ${RUST_SRC} build.rs kernel8.ld
-	cargo build ${RELEASE_FLAG}
+	cargo build --target aarch64-unknown-linux-gnu -Z build-std=core,compiler_builtins -Z build-std-features=compiler-builtins-mem ${RELEASE_FLAG}

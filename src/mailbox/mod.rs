@@ -3,9 +3,9 @@ use bitfield_struct::bitfield;
 use bitflags::bitflags;
 use core::arch::asm;
 use tock_registers::{
-    interfaces::{ReadWriteable, Readable, Writeable},
-    register_bitfields, register_structs,
-    registers::{ReadOnly, ReadWrite, WriteOnly},
+    interfaces::{Readable, Writeable},
+    register_structs,
+    registers::{ReadOnly, WriteOnly},
 };
 
 
@@ -16,8 +16,8 @@ use tags::*;
 
 #[repr(u8)]
 enum Channel {
-    CPU_TO_VC = 8,
-    VC_TO_CPU = 9,
+    CpuToVc = 8,
+    VcToCpu = 9,
 }
 
 bitflags! {
@@ -98,14 +98,12 @@ impl Mailbox {
         });
         let m = message.get();
         core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::Release);
-        let data = MessagePtr::new().with_channel(8).with_prop_buf(m).into();
-        unsafe {
-            self.mbox.write.set(data);
-        }
+        let data = MessagePtr::new().with_channel(Channel::CpuToVc as u8).with_prop_buf(m).into();
+        self.mbox.write.set(data);
 
         while self.read_is_empty() {}
         let mut res_ptr = MessagePtr::new();
-        while res_ptr.channel() != 8 {
+        while res_ptr.channel() != Channel::CpuToVc as u8 {
             unsafe { asm!("nop") };
             let res = self.mbox.read.get();
             res_ptr = MessagePtr::from(res);
@@ -135,16 +133,14 @@ impl Mailbox {
             end_tag: 0,
         });
         let data = MessagePtr::new()
-            .with_channel(8)
+            .with_channel(Channel::CpuToVc as u8)
             .with_prop_buf(message.get())
             .into();
-        unsafe {
-            self.mbox.write.set(data);
-        }
+        self.mbox.write.set(data);
 
         while self.read_is_empty() {}
         let mut res_ptr = MessagePtr::new();
-        while res_ptr.channel() != 8 {
+        while res_ptr.channel() != Channel::CpuToVc as u8 {
             let res = self.mbox.read.get();
             res_ptr = MessagePtr::from(res);
         }
