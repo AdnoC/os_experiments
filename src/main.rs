@@ -125,14 +125,13 @@ unsafe fn prep_transition_el2_to_el1() {
     ELR_EL2.set(kernel_init as *const() as u64);
 
     // Set up stack pointer. Just set it to the same stack we are using now.
-    SP_EL1.set(__kernel_stack_start as u64);
+    SP_EL1.set(&__kernel_stack_start as *const usize as usize as u64);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn __start_kernel() -> ! {
-    kernel_init()
-    // prep_transition_el2_to_el1();
-    // asm::eret()
+    prep_transition_el2_to_el1();
+    asm::eret()
 }
 
 #[no_mangle]

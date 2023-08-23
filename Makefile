@@ -9,28 +9,16 @@ HAS_QEMU := $(shell which ${QEMU} 2>/dev/null)
 ifndef HAS_QEMU
 	QEMU = qemu-system-aarch64.exe
 endif
-# ifeq ($(UNAME_S), Linux)
-# 	export CC = aarch64-linux-gnu-gcc
-# 	export AR = aarch64-linux-gnu-ar
-# 	export LD = aarch64-linux-gnu-ld
-	# export OCOPY = aarch64-linux-gnu-objcopy
-# 	export GDB = gdb-multiarch
+ifeq ($(UNAME_S), Linux)
+	export GDB = gdb-multiarch
 # 	# WSL can't access the Windows-based qemu through localhost.
 # 	# We have to find the actual IP address of the host.
-# 	export GDB_HOST = $(shell dig +short $(shell hostname).local | awk '{print; exit}')
-# 	export CFLAGS = -march=armv8-a -Wall -O3 -nostdlib -nostartfiles -ffreestanding -mtune=cortex-a53
-# 	export RUSTFLAGS = -C linker=${CC} -C target-cpu=cortex-a53 -C target-feature=+strict-align,+a53,+fp-armv8,+neon -C link-arg=-nostartfiles -C link-arg=-T./kernel8.ld
+	export GDB_HOST = $(shell dig +short $(shell hostname).local | awk '{print; exit}')
 #
-# endif
-# ifeq ($(UNAME_S), Darwin)
-# 	export CC = aarch64-unknown-linux-gnu-gcc
-# 	export AR = aarch64-unknown-linux-gnu-ar
-# 	export LD = aarch64-unknown-linux-gnu-ld
-# 	export OCOPY = aarch64-unknown-linux-gnu-objcopy
-# 	export GDB = aarch64-unknown-linux-gnu-gdb
-# 	export CFLAGS = -march=armv8-a -Wall -O3 -nostdlib -nostartfiles -ffreestanding -mtune=cortex-a53
-# 	export RUSTFLAGS = -C linker=${CC} -C target-cpu=cortex-a53 -C target-feature=+strict-align,+a53,+fp-armv8,+neon -C link-arg=-nostartfiles -C link-arg=-T./kernel8.ld
-# endif
+endif
+ifeq ($(UNAME_S), Darwin)
+	export GDB = aarch64-unknown-linux-gnu-gdb
+endif
 
 export OCOPY = cargo-objcopy
 DO_RELEASE = false
