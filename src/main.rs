@@ -7,11 +7,11 @@
 // #![test_runner(crate::test_runner::test_runner)]
 // #![reexport_test_harness_main = "test_main"]
 
-use core::arch::{asm, global_asm};
+use core::arch::global_asm;
 use core::convert::Infallible;
 use core::panic::PanicInfo;
 use tock_registers::interfaces::Writeable;
-use aarch64_cpu::registers::*;
+use aarch64_cpu::{asm, registers::*};
 
 
 #[allow(unused_macros)]
@@ -68,6 +68,7 @@ mod framebuffer;
 mod mailbox;
 mod time;
 mod uart;
+mod mmu;
 
 
 // our existing panic handler
@@ -84,7 +85,7 @@ pub static HELLO: &[u8] = b"Hello World!";
 static mut XYZ: [u8; 0xabc123] = [0; 0xabc123];
 
 extern "C" {
-    static __end: usize;
+    static __kernel_stack_start: usize;
 }
 
 
@@ -93,19 +94,49 @@ global_asm!(include_str!("boot.s"));
 
 
 /// Transition from hypervisor to OS
-fn transition_el2_to_el1() {
+///
+/// # Safety
+///
+/// `bss` hasn't been initialized, so do not touch it
+unsafe fn prep_transition_el2_to_el1() {
     // Enable timer counter registers for EL1
-    CNTHCTL_EL2.write(todo!());
+    CNTHCTL_EL2.write(CNTHCTL_EL2::EL1PCEN::SET + CNTHCTL_EL2::EL1PCTEN::SET);
 
     // https://developer.arm.com/documentation/ddi0601/2023-06/AArch64-Registers/CNTVOFF-EL2--Counter-timer-Virtual-Offset-Register?lang=en
     // No offset for EL1 timers
-    unsafe {
-        asm!("msr cntfrq_el0, {}", in(reg) 0);
-    }
+    CNTVOFF_EL2.set(0);
+
+    // EL1 should be aarch64
+    HCR_EL2.write(HCR_EL2::RW::EL1IsAarch64);
+
+    // Fake an exception return:
+    //
+    // Pretend we are in saved program state where all interrupts are masked an SP_EL1 was used as
+    // stack pointer
+    SPSR_EL2.write(
+        SPSR_EL2::D::Masked
+            + SPSR_EL2::A::Masked
+            + SPSR_EL2::I::Masked
+            + SPSR_EL2::F::Masked
+            + SPSR_EL2::M::EL1h,
+    );
+
+    // Then let link register point to `kernel_main`
+    ELR_EL2.set(kernel_init as *const() as u64);
+
+    // Set up stack pointer. Just set it to the same stack we are using now.
+    SP_EL1.set(__kernel_stack_start as u64);
 }
 
 #[no_mangle]
-pub extern "C" fn __start_kernel() -> ! {
+pub unsafe extern "C" fn __start_kernel() -> ! {
+    kernel_init()
+    // prep_transition_el2_to_el1();
+    // asm::eret()
+}
+
+#[no_mangle]
+pub extern "C" fn kernel_init() -> ! {
     if let Err(err) = main() {
         eprintln!("Error occured somewhere. Main returned Err.");
         eprintln!("{:?}", err);
@@ -121,7 +152,6 @@ fn main() -> Result<Infallible, &'static str> {
     }
 
     println!("Hello from println!!!!");
-    println!("End of kernel addr = {}", unsafe { __end });
 
 
 

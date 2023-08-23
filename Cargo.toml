@@ -29,6 +29,7 @@ static_assertions = "1.1.0"
 tock-registers = "0.8.1"
 uart_16550 = "0.3.0"
 volatile = "0.5.1"
+bytesize = { git = "https://github.com/AdnoC/bytesize_nostd.git", branch = "no_std", default-features = false }
 
 [package.metadata.bootimage]
 test-args = [

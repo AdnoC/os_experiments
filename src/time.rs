@@ -1,26 +1,19 @@
-use core::arch::asm;
+use aarch64_cpu::{asm, registers::*};
+use tock_registers::interfaces::Readable;
 
-fn timer_frequency() -> u32 {
-    let freq;
-    unsafe {
-        asm!("mrs {}, cntfrq_el0", out(reg) freq);
-    }
-    freq
+fn timer_frequency() -> u64 {
+    CNTFRQ_EL0.get()
 }
 
 fn timer_count() -> u64 {
-    let count;
-    unsafe {
-        asm!("mrs {}, cntpct_el0", out(reg) count);
-    }
-    count
+    CNTPCT_EL0.get()
 }
 
 // TODO: convert to macro with ASM so that it is exact # of cycles
 pub fn wait_cycle(mut num: usize) {
     while num > 0 {
         num -= 1;
-        unsafe { asm!("noop") };
+        asm::nop();
     }
 }
 pub fn wait_microsec(msec: u64) {

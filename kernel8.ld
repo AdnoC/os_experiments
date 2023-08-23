@@ -6,6 +6,7 @@ SECTIONS {
   . = 0x0;
   /* Our kernel image will be placed at address 0x80000. */
   . = 0x80000;
+  __kernel_stack_start = .;
   __start = .;
   __text_start = .;
   /* It starts with the ".text" segment. */
