@@ -1,0 +1,23 @@
+/// byte size for 1 byte
+pub const B: u64 = 1;
+/// bytes size for 1 kilobyte
+pub const KB: u64 = 1_000;
+/// bytes size for 1 megabyte
+pub const MB: u64 = 1_000_000;
+/// bytes size for 1 gigabyte
+pub const GB: u64 = 1_000_000_000;
+/// bytes size for 1 terabyte
+pub const TB: u64 = 1_000_000_000_000;
+/// bytes size for 1 petabyte
+pub const PB: u64 = 1_000_000_000_000_000;
+
+/// bytes size for 1 kibibyte
+pub const KIB: u64 = 1_024;
+/// bytes size for 1 mebibyte
+pub const MIB: u64 = 1_048_576;
+/// bytes size for 1 gibibyte
+pub const GIB: u64 = 1_073_741_824;
+/// bytes size for 1 tebibyte
+pub const TIB: u64 = 1_099_511_627_776;
+/// bytes size for 1 pebibyte
+pub const PIB: u64 = 1_125_899_906_842_624;
