@@ -64,6 +64,7 @@ macro_rules! eprintln {
     }};
 }
 
+mod units;
 mod framebuffer;
 mod mailbox;
 mod time;
@@ -145,6 +146,7 @@ pub extern "C" fn kernel_init() -> ! {
 }
 fn main() -> Result<Infallible, &'static str> {
     unsafe {
+        mmu::init_virtual_memory()?;
         uart::init();
         mailbox::init();
         framebuffer::init()?;

@@ -30,6 +30,8 @@ tock-registers = "0.8.1"
 uart_16550 = "0.3.0"
 volatile = "0.5.1"
 bytesize = { git = "https://github.com/AdnoC/bytesize_nostd.git", branch = "no_std", default-features = false }
+arr_macro = "0.2.1"
+array-const-fn-init = "0.1.1"
 
 [package.metadata.bootimage]
 test-args = [
