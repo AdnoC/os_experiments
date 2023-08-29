@@ -70,13 +70,16 @@ mod mailbox;
 mod time;
 mod uart;
 mod mmu;
+mod exceptions;
 
 
 // our existing panic handler
 // #[cfg(not(test))] // new attribute
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
+    use core::fmt::Write;
     eprintln!("Panic Occured: {}", info);
+    write!(uart::get(), "{}", info).ok();
     loop {}
 }
 
@@ -131,6 +134,7 @@ unsafe fn prep_transition_el2_to_el1() {
 
 #[no_mangle]
 pub unsafe extern "C" fn __start_kernel() -> ! {
+        exceptions::init_el2();
     prep_transition_el2_to_el1();
     asm::eret()
 }
@@ -146,8 +150,17 @@ pub extern "C" fn kernel_init() -> ! {
 }
 fn main() -> Result<Infallible, &'static str> {
     unsafe {
-        mmu::init_virtual_memory()?;
         uart::init();
+        exceptions::init();
+    println!("uart initialized");
+
+// {
+//     let q = 0xFFFFFFFFFF000000usize as *const usize;
+//     let w = *q;
+//     println!("q = {}", w);
+// }
+        mmu::init()?;
+        println!("vm initialized");
         mailbox::init();
         framebuffer::init()?;
     }

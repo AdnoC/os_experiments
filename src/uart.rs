@@ -170,5 +170,6 @@ pub fn spin_until_enter() {
         if c as usize == 13 {
             return;
         }
+        aarch64_cpu::asm::wfe();
     }
 }

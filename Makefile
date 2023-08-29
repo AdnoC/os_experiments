@@ -65,6 +65,7 @@ gdb:
 target/kernel.img: ${ELF_PATH}
 	${OCOPY} ${RELEASE_FLAG} -- -O binary target/kernel.img
 
-RUST_SRC = $(wildcard src/*.rs) $(wildcard src/**/*.rs) build.rs src/boot.s
-${ELF_PATH}: ${RUST_SRC} build.rs kernel8.ld
+RUST_SRC = $(wildcard src/*.rs) $(wildcard src/**/*.rs)
+ASM_SRC = $(wildcard src/*.s) $(wildcard src/**/*.s)
+${ELF_PATH}: ${RUST_SRC} ${ASM_SRC} build.rs kernel8.ld
 	cargo build -Z build-std=core,compiler_builtins -Z build-std-features=compiler-builtins-mem ${RELEASE_FLAG}
