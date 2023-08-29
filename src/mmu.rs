@@ -29,49 +29,54 @@ mod page_size_64_kb {
     pub const SIZE: usize = 64 * KIB as usize;
     pub const TABLE_ADRESS_PADDING_BITS: usize = 4;
     // With 64KB ganules we don't use level0
-    pub const LEVEL0_TABLE_SIZE: usize = 1;
+    pub const LEVEL0_TABLE_MAX_SIZE: usize = 1;
     pub const LEVEL0_TABLE_COVERAGE: usize = 4 * TIB as usize;
     pub const LEVEL0_BIT_RANGE: RangeInclusive<u64> = 0..=0;
 
-    pub const LEVEL1_TABLE_SIZE: usize = 1;//64;
+    pub const LEVEL1_TABLE_MAX_SIZE: usize = 64;
     pub const LEVEL1_TABLE_COVERAGE: usize = 4 * TIB as usize;
     pub const LEVEL1_BIT_RANGE: RangeInclusive<u64> = 42..=47;
 
-    pub const LEVEL2_TABLE_SIZE: usize = 0xFFFF_FFFF >> (512usize * 1024 * 1024).trailing_zeros() as usize;//8192;
+    pub const LEVEL2_TABLE_MAX_SIZE: usize = 8192;
     pub const LEVEL2_TABLE_COVERAGE: usize = 512 * MIB as usize;
     pub const LEVEL2_BIT_RANGE: RangeInclusive<u64> = 29..=41;
 
-    pub const LEVEL3_TABLE_SIZE: usize = 8192;
+    pub const LEVEL3_TABLE_MAX_SIZE: usize = 8192;
     pub const LEVEL3_TABLE_COVERAGE: usize = 64 * KIB as usize;
     pub const LEVEL3_BIT_RANGE: RangeInclusive<u64> = 16..=28;
 }
 
 mod page_size_4_kb {
-    use super::{mmap, max, min};
     use crate::units::{GIB, MIB, KIB};
     use core::ops::RangeInclusive;
 
     pub const SIZE: usize = 4 * KIB as usize;
     pub const TABLE_ADRESS_PADDING_BITS: usize = 0;
 
+    pub const LEVEL0_TABLE_MAX_SIZE: usize = 512;
     pub const LEVEL0_TABLE_COVERAGE: usize = 512 * GIB as usize;
-    pub const LEVEL0_TABLE_SIZE: usize = min(max(mmap::END_RAM_ADDR / LEVEL0_TABLE_COVERAGE, 1), 512);
     pub const LEVEL0_BIT_RANGE: RangeInclusive<u64> = 39..=47;
 
+    pub const LEVEL1_TABLE_MAX_SIZE: usize = 512;
     pub const LEVEL1_TABLE_COVERAGE: usize = 1 * GIB as usize;
-    pub const LEVEL1_TABLE_SIZE: usize = min(max(mmap::END_RAM_ADDR / LEVEL1_TABLE_COVERAGE, 1), 512);
     pub const LEVEL1_BIT_RANGE: RangeInclusive<u64> = 30..=38;
 
+    pub const LEVEL2_TABLE_MAX_SIZE: usize = 512;
     pub const LEVEL2_TABLE_COVERAGE: usize = 2 * MIB as usize;
-    pub const LEVEL2_TABLE_SIZE: usize = min(max(mmap::END_RAM_ADDR / LEVEL2_TABLE_COVERAGE, 1), 512);
     pub const LEVEL2_BIT_RANGE: RangeInclusive<u64> = 21..=29;
 
+    pub const LEVEL3_TABLE_MAX_SIZE: usize = 512;
     pub const LEVEL3_TABLE_COVERAGE: usize = 4 * KIB as usize;
-    pub const LEVEL3_TABLE_SIZE: usize = min(max(mmap::END_RAM_ADDR / LEVEL3_TABLE_COVERAGE, 1), 512);
     pub const LEVEL3_BIT_RANGE: RangeInclusive<u64> = 12..=20;
 }
 mod page_size {
+    use super::{mmap, max, min};
     pub use super::page_size_4_kb::*;
+
+    pub const LEVEL0_TABLE_SIZE: usize = min(max(mmap::END_RAM_ADDR / LEVEL0_TABLE_COVERAGE, 1), LEVEL0_TABLE_MAX_SIZE);
+    pub const LEVEL1_TABLE_SIZE: usize = min(max(mmap::END_RAM_ADDR / LEVEL1_TABLE_COVERAGE, 1), LEVEL1_TABLE_MAX_SIZE);
+    pub const LEVEL2_TABLE_SIZE: usize = min(max(mmap::END_RAM_ADDR / LEVEL2_TABLE_COVERAGE, 1), LEVEL2_TABLE_MAX_SIZE);
+    pub const LEVEL3_TABLE_SIZE: usize = min(max(mmap::END_RAM_ADDR / LEVEL3_TABLE_COVERAGE, 1), LEVEL3_TABLE_MAX_SIZE);
 }
 
 
@@ -362,22 +367,40 @@ pub fn init() -> Result<(), &'static str> {
     // Set the address of the translation tables for upper half of virt address space
     // TTBR1_EL1.set_baddr(table_base_addr);
 
+    // TCR_EL1.write(
+    //     TCR_EL1::TBI0::Used +
+    //     TCR_EL1::A1::TTBR0 +
+    //     // Our Intermediate Physical Address (IPA) is 4TiB large
+    //     // TCR_EL1::IPS::Bits_42 +
+    //     TCR_EL1::IPS::Bits_32 +
+    //     // Inner shareable (idk what this means atm)
+    //     TCR_EL1::SH0::Inner +
+    //     // 64-bit granule size for TTBR0
+    //     TCR_EL1::TG0::KiB_4 +
+    //     // On TLB miss, walk translation table instead of faulting
+    //     TCR_EL1::EPD0::EnableTTBR0Walks +
+    //     TCR_EL1::EPD1::EnableTTBR1Walks +
+    //     TCR_EL1::T0SZ.val(0x19/* 64 - 48#<{(| mmap::END_RAM_ADDR.trailing_zeros() as u64 |)}># */) +
+    //     TCR_EL1::IRGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable +
+    //     TCR_EL1::ORGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable
+    //  );
+
     TCR_EL1.write(
         TCR_EL1::TBI0::Used +
         TCR_EL1::A1::TTBR0 +
         // Our Intermediate Physical Address (IPA) is 4TiB large
         // TCR_EL1::IPS::Bits_42 +
-        TCR_EL1::IPS::Bits_32 +
+        TCR_EL1::IPS::Bits_40 +
         // Inner shareable (idk what this means atm)
         TCR_EL1::SH0::Inner +
         // 64-bit granule size for TTBR0
-        TCR_EL1::TG0::KiB_4 +
+        TCR_EL1::TG0::KiB_64 +
         // On TLB miss, walk translation table instead of faulting
         TCR_EL1::EPD0::EnableTTBR0Walks +
         TCR_EL1::EPD1::EnableTTBR1Walks +
-        TCR_EL1::T0SZ.val(0x19/* 64 - 48#<{(| mmap::END_RAM_ADDR.trailing_zeros() as u64 |)}># */) +
-        TCR_EL1::IRGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable +
-        TCR_EL1::ORGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable
+        TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_zeros() as u64) +
+        TCR_EL1::IRGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable +
+        TCR_EL1::ORGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
      );
     let mut tcr_val = 0x19u64;
     tcr_val |= 1 << 8;
@@ -385,44 +408,12 @@ pub fn init() -> Result<(), &'static str> {
     tcr_val |= 3 << 12;
     TCR_EL1.set(tcr_val);
 
-    // TCR_EL1.write(
-    //     TCR_EL1::TBI0::Used +
-    //     TCR_EL1::A1::TTBR0 +
-    //     // Our Intermediate Physical Address (IPA) is 4TiB large
-    //     // TCR_EL1::IPS::Bits_42 +
-    //     TCR_EL1::IPS::Bits_40 +
-    //     // Inner shareable (idk what this means atm)
-    //     TCR_EL1::SH0::Inner +
-    //     // 64-bit granule size for TTBR0
-    //     TCR_EL1::TG0::KiB_64 +
-    //     // On TLB miss, walk translation table instead of faulting
-    //     TCR_EL1::EPD0::EnableTTBR0Walks +
-    //     TCR_EL1::EPD1::EnableTTBR1Walks +
-    //     TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_zeros() as u64) +
-    //     TCR_EL1::IRGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable +
-    //     TCR_EL1::ORGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
-    //  );
-
     println!("Populated tables and set mmu args. Enabling mmu");
     // Not sure what this argument does
     barrier::isb(barrier::SY);
 
-    // Invalidate TLB
-    unsafe {
-        use core::arch::asm;
-        // asm!("tlbi alle1");
-        // barrier::isb(barrier::SY);
-    }
-
     // Actually enable the MMU
-    // SCTLR_EL1.modify(SCTLR_EL1::M::SET);
-    unsafe {
-        use core::arch::asm;
-        let mut sc = 1;
-        sc |= 1 << 2;
-        sc |= 1 << 12;
-        SCTLR_EL1.set(sc);
-    }
+    SCTLR_EL1.modify(SCTLR_EL1::M::SET);
 
     // Again, not sure what this argument does
     barrier::isb(barrier::SY);
