@@ -367,46 +367,41 @@ pub fn init() -> Result<(), &'static str> {
     // Set the address of the translation tables for upper half of virt address space
     // TTBR1_EL1.set_baddr(table_base_addr);
 
+    TCR_EL1.write(
+        TCR_EL1::TBI0::Used +
+        TCR_EL1::A1::TTBR0 +
+        // Our Intermediate Physical Address (IPA) is 4TiB large
+        TCR_EL1::IPS::Bits_42 +
+        // TCR_EL1::IPS::Bits_32 +
+        // Inner shareable (idk what this means atm)
+        TCR_EL1::SH0::Inner +
+        // 64-bit granule size for TTBR0
+        TCR_EL1::TG0::KiB_4 +
+        // On TLB miss, walk translation table instead of faulting
+        TCR_EL1::EPD0::EnableTTBR0Walks +
+        TCR_EL1::EPD1::EnableTTBR1Walks +
+        TCR_EL1::T0SZ.val(0x19/* 64 - 48#<{(| mmap::END_RAM_ADDR.trailing_zeros() as u64 |)}># */) +
+        TCR_EL1::IRGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable +
+        TCR_EL1::ORGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable
+     );
+
     // TCR_EL1.write(
     //     TCR_EL1::TBI0::Used +
     //     TCR_EL1::A1::TTBR0 +
     //     // Our Intermediate Physical Address (IPA) is 4TiB large
     //     // TCR_EL1::IPS::Bits_42 +
-    //     TCR_EL1::IPS::Bits_32 +
+    //     TCR_EL1::IPS::Bits_40 +
     //     // Inner shareable (idk what this means atm)
     //     TCR_EL1::SH0::Inner +
     //     // 64-bit granule size for TTBR0
-    //     TCR_EL1::TG0::KiB_4 +
+    //     TCR_EL1::TG0::KiB_64 +
     //     // On TLB miss, walk translation table instead of faulting
     //     TCR_EL1::EPD0::EnableTTBR0Walks +
     //     TCR_EL1::EPD1::EnableTTBR1Walks +
-    //     TCR_EL1::T0SZ.val(0x19/* 64 - 48#<{(| mmap::END_RAM_ADDR.trailing_zeros() as u64 |)}># */) +
-    //     TCR_EL1::IRGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable +
-    //     TCR_EL1::ORGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable
+    //     TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_zeros() as u64) +
+    //     TCR_EL1::IRGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable +
+    //     TCR_EL1::ORGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
     //  );
-
-    TCR_EL1.write(
-        TCR_EL1::TBI0::Used +
-        TCR_EL1::A1::TTBR0 +
-        // Our Intermediate Physical Address (IPA) is 4TiB large
-        // TCR_EL1::IPS::Bits_42 +
-        TCR_EL1::IPS::Bits_40 +
-        // Inner shareable (idk what this means atm)
-        TCR_EL1::SH0::Inner +
-        // 64-bit granule size for TTBR0
-        TCR_EL1::TG0::KiB_64 +
-        // On TLB miss, walk translation table instead of faulting
-        TCR_EL1::EPD0::EnableTTBR0Walks +
-        TCR_EL1::EPD1::EnableTTBR1Walks +
-        TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_zeros() as u64) +
-        TCR_EL1::IRGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable +
-        TCR_EL1::ORGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
-     );
-    let mut tcr_val = 0x19u64;
-    tcr_val |= 1 << 8;
-    tcr_val |= 1 << 10;
-    tcr_val |= 3 << 12;
-    TCR_EL1.set(tcr_val);
 
     println!("Populated tables and set mmu args. Enabling mmu");
     // Not sure what this argument does
