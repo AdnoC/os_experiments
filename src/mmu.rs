@@ -5,7 +5,7 @@ use tock_registers::{
     registers::InMemoryRegister,
     interfaces::{ReadWriteable, Writeable},
 };
-use static_assertions::{assert_eq_size, assert_eq_align};
+use static_assertions::{assert_eq_size, assert_eq_align, const_assert_eq};
 
 // https://stackoverflow.com/a/53646925
 const fn max(a: usize, b: usize) -> usize {
@@ -19,6 +19,7 @@ pub mod mmap {
     use crate::units::GIB;
 
     pub const END_RAM_ADDR: usize = (4 * GIB - 1) as usize;
+    static_assertions::const_assert_eq!(END_RAM_ADDR, 0xFFFF_FFFF);
 }
 
 
@@ -28,7 +29,7 @@ mod page_size_64_kb {
 
     pub const SIZE: usize = 64 * KIB as usize;
     pub const TABLE_ADRESS_PADDING_BITS: usize = 4;
-    // With 64KB ganules we don't use level0
+
     pub const LEVEL0_TABLE_MAX_SIZE: usize = 1;
     pub const LEVEL0_TABLE_COVERAGE: usize = 4 * TIB as usize;
     pub const LEVEL0_BIT_RANGE: RangeInclusive<u64> = 0..=0;
@@ -99,11 +100,13 @@ struct TranslationTable {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct DummyTable<const N: usize, const A: usize>([u64; N], Align<A>) where Align<A>: elain::Alignment;
-
 #[repr(C)]
 struct DescriptorTable<const N: usize, const A: usize>([TableDescriptionR; N], Align<A>) where Align<A>: elain::Alignment;
 #[repr(C)]
 struct EntryTable<const N: usize, const A: usize>([PageEntryR; N], Align<A>) where Align<A>: elain::Alignment;
+const_assert_eq!(core::mem::align_of::<DummyTable<1, {page_size::SIZE}>>(), page_size::SIZE);
+const_assert_eq!(core::mem::align_of::<DescriptorTable<1, {page_size::SIZE}>>(), page_size::SIZE);
+const_assert_eq!(core::mem::align_of::<EntryTable<1, {page_size::SIZE}>>(), page_size::SIZE);
 
 impl TranslationTable {
     const fn new() -> Self {
@@ -360,19 +363,20 @@ pub fn init() -> Result<(), &'static str> {
         MAIR_EL1::Attr1_Device::nonGathering_nonReordering_EarlyWriteAck,
         );
 
-    // let table_base_addr = &TRANLSATION_TABLES.lock().level0.0 as *const [TableDescriptionR; NUM_LEVEL_0] as usize as u64;
-    let table_base_addr = &TRANLSATION_TABLES.lock().level1[0].0 as *const [TableDescriptionR; NUM_LEVEL_1] as usize as u64;
+    // let table_base_addr = &TRANLSATION_TABLES.lock().level1[0].0 as *const [TableDescriptionR; NUM_LEVEL_1] as usize as u64;
+    let table_base_addr = &TRANLSATION_TABLES.lock().level0.0 as *const [TableDescriptionR; NUM_LEVEL_0] as usize as u64;
     // Set the address of the translation tables for lower half of virt address space
     TTBR0_EL1.set_baddr(table_base_addr);
     // Set the address of the translation tables for upper half of virt address space
     // TTBR1_EL1.set_baddr(table_base_addr);
 
+    // 4 KiB
     TCR_EL1.write(
         TCR_EL1::TBI0::Used +
         TCR_EL1::A1::TTBR0 +
         // Our Intermediate Physical Address (IPA) is 4TiB large
-        TCR_EL1::IPS::Bits_42 +
-        // TCR_EL1::IPS::Bits_32 +
+        // TCR_EL1::IPS::Bits_42 +
+        TCR_EL1::IPS::Bits_48 +
         // Inner shareable (idk what this means atm)
         TCR_EL1::SH0::Inner +
         // 64-bit granule size for TTBR0
@@ -380,11 +384,14 @@ pub fn init() -> Result<(), &'static str> {
         // On TLB miss, walk translation table instead of faulting
         TCR_EL1::EPD0::EnableTTBR0Walks +
         TCR_EL1::EPD1::EnableTTBR1Walks +
-        TCR_EL1::T0SZ.val(0x19/* 64 - 48#<{(| mmap::END_RAM_ADDR.trailing_zeros() as u64 |)}># */) +
+        // TODO: check if this has an off-by-one error
+        // TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_ones() as u64) +
+        TCR_EL1::T0SZ.val(64-48) +
         TCR_EL1::IRGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable +
         TCR_EL1::ORGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable
      );
 
+    // 64 KiB, does not work
     // TCR_EL1.write(
     //     TCR_EL1::TBI0::Used +
     //     TCR_EL1::A1::TTBR0 +
@@ -397,8 +404,8 @@ pub fn init() -> Result<(), &'static str> {
     //     TCR_EL1::TG0::KiB_64 +
     //     // On TLB miss, walk translation table instead of faulting
     //     TCR_EL1::EPD0::EnableTTBR0Walks +
-    //     TCR_EL1::EPD1::EnableTTBR1Walks +
-    //     TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_zeros() as u64) +
+    //     TCR_EL1::EPD1::DisableTTBR1Walks +
+    //     TCR_EL1::T0SZ.val(64 - mmap::END_RAM_ADDR.trailing_ones() as u64) +
     //     TCR_EL1::IRGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable +
     //     TCR_EL1::ORGN0::WriteBack_ReadAlloc_WriteAlloc_Cacheable
     //  );
@@ -408,7 +415,7 @@ pub fn init() -> Result<(), &'static str> {
     barrier::isb(barrier::SY);
 
     // Actually enable the MMU
-    SCTLR_EL1.modify(SCTLR_EL1::M::SET);
+    SCTLR_EL1.modify(SCTLR_EL1::M::Enable);
 
     // Again, not sure what this argument does
     barrier::isb(barrier::SY);
