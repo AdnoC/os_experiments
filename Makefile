@@ -10,6 +10,7 @@ ifndef HAS_QEMU
 	QEMU = qemu-system-aarch64.exe
 endif
 ifeq ($(UNAME_S), Linux)
+	export TELNET = telnet.exe
 	export GDB = gdb-multiarch
 # 	# WSL can't access the Windows-based qemu through localhost.
 # 	# We have to find the actual IP address of the host.
@@ -17,6 +18,7 @@ ifeq ($(UNAME_S), Linux)
 #
 endif
 ifeq ($(UNAME_S), Darwin)
+	export TELNET = telnet
 	export GDB = aarch64-unknown-linux-gnu-gdb
 endif
 
@@ -58,9 +60,18 @@ qemu-gdb: target/kernel.img
 	@echo "(Press Ctrl-A X to exit QEMU.)"
 	${QEMU} -M raspi3b -s -S -serial null -serial mon:stdio -kernel target/kernel.img
 
+.PHONY: qemu-mon
+qemu-mon: target/kernel.img
+	@echo "(Press Ctrl-A X to exit QEMU.)"
+	${QEMU} -M raspi3b -monitor telnet:127.0.0.1:55555,server,nowait -s -kernel target/kernel.img -serial null -serial mon:stdio
+
 .PHONY: gdb
 gdb:
 	${GDB} -ex "target remote ${GDB_HOST}:1234" ${ELF_PATH}
+
+.PHONY: telnet
+telnet:
+	${TELNET} 127.0.0.1 55555
 
 target/kernel.img: ${ELF_PATH}
 	${OCOPY} ${RELEASE_FLAG} -- -O binary target/kernel.img

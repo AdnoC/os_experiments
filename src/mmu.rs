@@ -17,9 +17,11 @@ const fn min(a: usize, b: usize) -> usize {
 
 pub mod mmap {
     use crate::units::GIB;
+    use core::ops::RangeInclusive;
 
     pub const END_RAM_ADDR: usize = (4 * GIB - 1) as usize;
     static_assertions::const_assert_eq!(END_RAM_ADDR, 0xFFFF_FFFF);
+    pub const MMIO_ADDR: RangeInclusive<usize> = 0xFE00_0000..=0xFF84_FFFF;
 }
 
 
@@ -129,7 +131,7 @@ impl TranslationTable {
     }
 
 
-    fn translate_virt_to_phys(&self, virt_addr: u64) -> Option<u64> {
+    pub fn translate_virt_to_phys(&self, virt_addr: u64) -> Option<u64> {
         use tock_registers::interfaces::Readable;
         use core::ops::RangeInclusive;
         fn get_bit_range(mut val: u64, addr_range: RangeInclusive<u64>) -> u64 {
@@ -148,7 +150,7 @@ impl TranslationTable {
         let l1_idx = get_bit_range(virt_addr, page_size::LEVEL1_BIT_RANGE) as usize;
         let l2_idx = get_bit_range(virt_addr, page_size::LEVEL2_BIT_RANGE) as usize;
         let l3_idx = get_bit_range(virt_addr, page_size::LEVEL3_BIT_RANGE) as usize;
-println!("virt: {:#x?}, idxs: {:?} ({:x?})", virt_addr, (l0_idx, l1_idx, l2_idx, l3_idx), (l0_idx, l1_idx, l2_idx, l3_idx));
+// println!("virt: {:#x?}, idxs: {:?} ({:x?})", virt_addr, (l0_idx, l1_idx, l2_idx, l3_idx), (l0_idx, l1_idx, l2_idx, l3_idx));
 
         if l0_idx >= NUM_LEVEL_0 || l1_idx >= NUM_LEVEL_1 || l2_idx >= NUM_LEVEL_2 || l3_idx >= NUM_LEVEL_3 {
             return None;
@@ -156,7 +158,8 @@ println!("virt: {:#x?}, idxs: {:?} ({:x?})", virt_addr, (l0_idx, l1_idx, l2_idx,
 
         let l3_entry = &self.level3[l0_idx][l1_idx][l2_idx].0[l3_idx];
 
-        Some(l3_entry.read(PageEntry::OUTPUT_ADDR) >> page_size::TABLE_ADRESS_PADDING_BITS)
+        let mask = 0x7ffffffff000;
+        Some(l3_entry.get() & mask)
     }
 
     fn verify_table_pointers(&self) {
@@ -240,8 +243,13 @@ println!("virt: {:#x?}, idxs: {:?} ({:x?})", virt_addr, (l0_idx, l1_idx, l2_idx,
                         l3_entry.modify(
                             PageEntry::VALID::SET +
                             PageEntry::TYPE::Page +
+                            PageEntry::ATTRIB_INDEX.val(0) +
                             PageEntry::ACCESS_FLAG::SET
                         );
+                        if mmap::MMIO_ADDR.contains(&phys_addr) {
+                            l3_entry.modify(PageEntry::ATTRIB_INDEX.val(1));
+                        }
+
     // {
     //
     //
@@ -354,17 +362,17 @@ pub fn init() -> Result<(), &'static str> {
     }
 
       // Define the memory types being mapped.
-        MAIR_EL1.write(
-            // Attribute 0 - Cacheable normal DRAM.
-            MAIR_EL1::Attr0_Normal_Outer::WriteBack_NonTransient_ReadWriteAlloc +
+    MAIR_EL1.write(
+        // Attribute 0 - Cacheable normal DRAM.
+        MAIR_EL1::Attr0_Normal_Outer::WriteBack_NonTransient_ReadWriteAlloc +
         MAIR_EL1::Attr0_Normal_Inner::WriteBack_NonTransient_ReadWriteAlloc +
 
         // Attribute 1 - Device.
         MAIR_EL1::Attr1_Device::nonGathering_nonReordering_EarlyWriteAck,
-        );
+    );
 
-    // let table_base_addr = &TRANLSATION_TABLES.lock().level1[0].0 as *const [TableDescriptionR; NUM_LEVEL_1] as usize as u64;
-    let table_base_addr = &TRANLSATION_TABLES.lock().level0.0 as *const [TableDescriptionR; NUM_LEVEL_0] as usize as u64;
+    let table_base_addr = &TRANLSATION_TABLES.lock().level1[0].0 as *const [TableDescriptionR; NUM_LEVEL_1] as usize as u64;
+    // let table_base_addr = &TRANLSATION_TABLES.lock().level0.0 as *const [TableDescriptionR; NUM_LEVEL_0] as usize as u64;
     // Set the address of the translation tables for lower half of virt address space
     TTBR0_EL1.set_baddr(table_base_addr);
     // Set the address of the translation tables for upper half of virt address space
@@ -375,8 +383,8 @@ pub fn init() -> Result<(), &'static str> {
         TCR_EL1::TBI0::Used +
         TCR_EL1::A1::TTBR0 +
         // Our Intermediate Physical Address (IPA) is 4TiB large
-        // TCR_EL1::IPS::Bits_42 +
-        TCR_EL1::IPS::Bits_48 +
+        TCR_EL1::IPS::Bits_42 +
+        // TCR_EL1::IPS::Bits_48 +
         // Inner shareable (idk what this means atm)
         TCR_EL1::SH0::Inner +
         // 64-bit granule size for TTBR0
@@ -385,8 +393,8 @@ pub fn init() -> Result<(), &'static str> {
         TCR_EL1::EPD0::EnableTTBR0Walks +
         TCR_EL1::EPD1::EnableTTBR1Walks +
         // TODO: check if this has an off-by-one error
-        // TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_ones() as u64) +
-        TCR_EL1::T0SZ.val(64-48) +
+        TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_ones() as u64) +
+        // TCR_EL1::T0SZ.val(64-48) +
         TCR_EL1::IRGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable +
         TCR_EL1::ORGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable
      );
@@ -422,6 +430,49 @@ pub fn init() -> Result<(), &'static str> {
 
     Ok(())
 }
+
+pub fn translate_virt_to_phys(addr: u64) -> u64 {
+    without_mmu! {{
+        let table = TRANLSATION_TABLES.lock();
+        table.translate_virt_to_phys(addr).unwrap()
+
+    }}
+}
+
+macro_rules! without_mmu {
+    ($body:block) => {{
+        use tock_registers::{interfaces::ReadWriteable};
+        use aarch64_cpu::registers::SCTLR_EL1;
+        SCTLR_EL1.modify(SCTLR_EL1::M::Enable);
+        let res = {
+            $body
+        };
+        SCTLR_EL1.modify(SCTLR_EL1::M::Disable);
+        res
+    }};
+    ($e:expr;) => {{
+        use tock_registers::interfaces::ReadWriteable;
+        use aarch64_cpu::registers::SCTLR_EL1;
+        SCTLR_EL1.modify(SCTLR_EL1::M::Enable);
+        let res = {
+            $e
+        };
+        SCTLR_EL1.modify(SCTLR_EL1::M::Disable);
+        res
+    }};
+    ($e:expr) => {{
+        use tock_registers::interfaces::ReadWriteable;
+        use aarch64_cpu::registers::SCTLR_EL1;
+        SCTLR_EL1.modify(SCTLR_EL1::M::Enable);
+        let res = {
+            $e
+        };
+        SCTLR_EL1.modify(SCTLR_EL1::M::Disable);
+        res
+    }};
+}
+
+pub(crate) use without_mmu;
 
 
 type TableDescriptionR = InMemoryRegister<u64, TableDescriptor::Register>;

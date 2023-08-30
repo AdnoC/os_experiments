@@ -134,7 +134,6 @@ unsafe fn prep_transition_el2_to_el1() {
 
 #[no_mangle]
 pub unsafe extern "C" fn __start_kernel() -> ! {
-        exceptions::init_el2();
     prep_transition_el2_to_el1();
     asm::eret()
 }
@@ -155,6 +154,7 @@ fn main() -> Result<Infallible, &'static str> {
     println!("uart initialized");
 
 // {
+//     uart::spin_until_enter();
 //     let q = 0xFFFFFFFFFF000000usize as *const usize;
 //     let w = *q;
 //     println!("q = {}", w);
@@ -167,6 +167,14 @@ fn main() -> Result<Infallible, &'static str> {
 
     println!("Hello from println!!!!");
 
+    {
+        uart::spin_until_enter();
+        let x = 0x4FF1_5040usize as *mut usize;
+        println!("about to write to addr {:#x} -> {:x}", x as u64, mmu::translate_virt_to_phys(x as u64));
+        unsafe {
+            *x = 5;
+        }
+    }
 
 
     // framebuffer::draw_text("HELLOOOOOOO");
