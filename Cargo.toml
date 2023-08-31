@@ -33,6 +33,7 @@ bytesize = { git = "https://github.com/AdnoC/bytesize_nostd.git", branch = "no_s
 arr_macro = "0.2.1"
 array-const-fn-init = "0.1.1"
 elain = "0.3.0"
+bit_field = "0.10.2"
 
 [package.metadata.bootimage]
 test-args = [

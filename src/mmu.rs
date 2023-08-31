@@ -371,8 +371,8 @@ pub fn init() -> Result<(), &'static str> {
         MAIR_EL1::Attr1_Device::nonGathering_nonReordering_EarlyWriteAck,
     );
 
-    let table_base_addr = &TRANLSATION_TABLES.lock().level1[0].0 as *const [TableDescriptionR; NUM_LEVEL_1] as usize as u64;
-    // let table_base_addr = &TRANLSATION_TABLES.lock().level0.0 as *const [TableDescriptionR; NUM_LEVEL_0] as usize as u64;
+    // let table_base_addr = &TRANLSATION_TABLES.lock().level1[0].0 as *const [TableDescriptionR; NUM_LEVEL_1] as usize as u64;
+    let table_base_addr = &TRANLSATION_TABLES.lock().level0.0 as *const [TableDescriptionR; NUM_LEVEL_0] as usize as u64;
     // Set the address of the translation tables for lower half of virt address space
     TTBR0_EL1.set_baddr(table_base_addr);
     // Set the address of the translation tables for upper half of virt address space
@@ -383,8 +383,8 @@ pub fn init() -> Result<(), &'static str> {
         TCR_EL1::TBI0::Used +
         TCR_EL1::A1::TTBR0 +
         // Our Intermediate Physical Address (IPA) is 4TiB large
-        TCR_EL1::IPS::Bits_42 +
-        // TCR_EL1::IPS::Bits_48 +
+        // TCR_EL1::IPS::Bits_42 +
+        TCR_EL1::IPS::Bits_48 +
         // Inner shareable (idk what this means atm)
         TCR_EL1::SH0::Inner +
         // 64-bit granule size for TTBR0
@@ -393,8 +393,8 @@ pub fn init() -> Result<(), &'static str> {
         TCR_EL1::EPD0::EnableTTBR0Walks +
         TCR_EL1::EPD1::EnableTTBR1Walks +
         // TODO: check if this has an off-by-one error
-        TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_ones() as u64) +
-        // TCR_EL1::T0SZ.val(64-48) +
+        // TCR_EL1::T0SZ.val(mmap::END_RAM_ADDR.trailing_ones() as u64) +
+        TCR_EL1::T0SZ.val(64-48) +
         TCR_EL1::IRGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable +
         TCR_EL1::ORGN0::WriteBack_ReadAlloc_NoWriteAlloc_Cacheable
      );
