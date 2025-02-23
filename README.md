@@ -1,4 +1,8 @@
-# Resources
+# Bare-metal OS stuff
+
+This is a in-progress bare-metal os for the Raspberry PI 4. Long-term goal is to implement enough syscalls that a "Hello World" in C is runnable.
+
+## Resources
 
 https://github.com/rust-embedded/rust-raspberrypi-OS-tutorials
 
